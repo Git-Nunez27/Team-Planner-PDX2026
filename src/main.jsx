@@ -89,20 +89,26 @@ function App() {
       window.clearInterval(syncInterval);
     };
   }, []);
+  // ✅ เก็บ state ล่าสุดไว้เสมอ เพื่อให้ save loop อ่านได้ถูกต้อง
+  const latestStateRef = useRef(null);
   useEffect(() => {
     if (!dataReady || !supabase) return;
     const nextState = { employees: emps, plans, history };
     const serializedState = JSON.stringify(nextState);
     if (serializedState === savedStateRef.current) return;
+
+    // อัปเดต ref ให้เป็น state ล่าสุดเสมอ
+    latestStateRef.current = { nextState, serializedState };
     hasPendingSaveRef.current = true;
-    // ✅ ใช้ตัวแปร local เก็บ flag ของ save นี้ ไม่ให้ cleanup ยกเลิก
-    let cancelled = false;
+
     const saveData = window.setTimeout(async () => {
-      if (cancelled) return;
+      // ✅ อ่านจาก ref ล่าสุด ไม่ใช่ closure เก่า
+      const toSave = latestStateRef.current;
+      if (!toSave) return;
       const { error } = await supabase.from("app_state").upsert(
         {
           id: 1,
-          data: nextState,
+          data: toSave.nextState,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "id" },
@@ -110,30 +116,15 @@ function App() {
       if (error) {
         setDataError("ไม่สามารถบันทึกข้อมูลลงฐานข้อมูลได้");
       } else {
-        savedStateRef.current = serializedState;
+        savedStateRef.current = toSave.serializedState;
       }
       hasPendingSaveRef.current = false;
     }, 500);
+
     return () => {
-      // ✅ ไม่ยกเลิก timeout และไม่ reset flag — ให้ save ทำงานต่อ
-      cancelled = true;
+      // ✅ แค่ยกเลิก timer — ไม่ save state เก่า ไม่ reset flag
+      // effect ใหม่จะ schedule timer ใหม่พร้อม state ล่าสุดแทน
       window.clearTimeout(saveData);
-      // เริ่ม save ใหม่ทันทีด้วย state ล่าสุด
-      const doSave = async () => {
-        const { error } = await supabase.from("app_state").upsert(
-          {
-            id: 1,
-            data: nextState,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "id" },
-        );
-        if (!error) {
-          savedStateRef.current = serializedState;
-        }
-        hasPendingSaveRef.current = false;
-      };
-      doSave();
     };
   }, [dataReady, emps, plans, history]);
   const notify = (m) => {
@@ -155,7 +146,7 @@ function App() {
       />
     );
   const isAdmin = user.role === "Admin",
-    isManager = user.role === "Manager",
+    isManager = user.role === "PM",
     isSupervisor = user.role === "Supervisor",
     isOM = user.role === "OM",
     isGM = user.role === "GM";
@@ -360,7 +351,7 @@ function Login({ emps, onLogin }) {
 const Card = ({ children, className = "" }) => (
   <div className={"card " + className}>{children}</div>
 );
-const OVERVIEW_ROLES = ["Admin", "Manager", "OM", "GM", "MD"];
+const OVERVIEW_ROLES = ["Admin", "PM", "OM", "GM", "MD"];
 
 /* ── Shared: Donut SVG ── */
 function DonutChart({ data, label }) {
@@ -830,14 +821,14 @@ function Admin({ emps, setEmps, plans, setPlans, notify }) {
     managerId: "",
   });
   const leaderConfig = {
-    Supervisor: { role: "Manager", label: "Manager" },
-    Manager: { role: "OM", label: "Operation Manager (OM)" },
+    Supervisor: { role: "PM", label: "PM" },
+    PM: { role: "OM", label: "OM (Operation Manager)" },
   };
   const leader = leaderConfig[form.role];
   const leaders = leader
     ? emps.filter((employee) => employee.role === leader.role)
     : [];
-  const roleOrder = { MD: 1, GM: 2, OM: 3, Manager: 4, Supervisor: 5, Admin: 6 };
+  const roleOrder = { MD: 1, GM: 2, OM: 3, PM: 4, Supervisor: 5, Admin: 6 };
   return (
     <>
       <h1>👑 Admin Management</h1>
@@ -863,7 +854,7 @@ function Admin({ emps, setEmps, plans, setPlans, notify }) {
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
             >
-              <option>Manager</option>
+              <option>PM</option>
               <option>Supervisor</option>
               <option>OM</option>
               <option>MD</option>
@@ -949,12 +940,12 @@ function Admin({ emps, setEmps, plans, setPlans, notify }) {
                       <td>{e.active ? "🟢 Active" : "🔴 Inactive"}</td>
                       <td>
                         <div className="row-actions">
-                          {["Supervisor", "Manager"].includes(e.role) && (
+                          {["Supervisor", "PM"].includes(e.role) && (
                             <button
                               className="btn small"
                               onClick={() => {
                                 const expectedLeaderRole =
-                                  e.role === "Supervisor" ? "Manager" : "OM";
+                                  e.role === "Supervisor" ? "PM" : "OM";
                                 const newManager = prompt(
                                   `เลือก ${expectedLeaderRole} ID:`,
                                   e.managerId || "",
@@ -1056,7 +1047,7 @@ function Team({ emps, plans, user }) {
     ].join("-");
   });
   const teamEmployees =
-    user.role === "Manager"
+    user.role === "PM"
       ? emps.filter(
         (employee) =>
           employee.role === "Supervisor" && employee.managerId === user.id,
@@ -1196,7 +1187,7 @@ function Approval({
       ...history,
     ]);
   };
-  const subordinateRole = user.role === "OM" ? "Manager" : "Supervisor";
+  const subordinateRole = user.role === "OM" ? "PM" : "Supervisor";
   const subordinateIds = emps
     .filter(
       (employee) =>
@@ -1301,20 +1292,19 @@ function Plan({ plans, setPlans, emps, user, notify }) {
       employee.role === "Supervisor" && employee.managerId === user.id,
   );
   const managedIds = managedEmployees.map((employee) => employee.id);
-  const canCreatePlan = ["Manager", "Supervisor"].includes(user.role);
+  const isSelfApprover = ["OM", "GM", "MD"].includes(user.role);
+  const canCreatePlan = ["PM", "Supervisor", "OM", "GM", "MD"].includes(user.role);
   let rows =
     user.role === "Supervisor"
       ? plans.filter((p) => p.empId === user.id)
-      : user.role === "Manager"
-        ? plans.filter(
-          (p) => p.empId === Number(selectedEmployeeId),
-        )
-        : ["Admin", "MD", "GM", "OM"].includes(user.role)
-          ? plans
+      : user.role === "PM"
+        ? plans.filter((p) => p.empId === Number(selectedEmployeeId))
+        : isSelfApprover
+          ? plans.filter((p) => p.empId === user.id)
           : plans;
   return (
     <>
-      <h1>📝 {user.role === "Supervisor" ? "My Plan" : "Plans"}</h1>
+      <h1>📝 {["Supervisor", "OM", "GM", "MD"].includes(user.role) ? "My Plan" : "Plans"}</h1>
       {canCreatePlan && (
         <Card>
           <div className="form-grid">
@@ -1363,29 +1353,33 @@ function Plan({ plans, setPlans, emps, user, notify }) {
             onClick={() => {
               if (!f.task) return notify("กรุณากรอกแผนงาน");
               if (!f.periods.length) return notify("กรุณาเลือกช่วงเวลา");
+              const autoApprove = isSelfApprover;
               setPlans([
                 ...plans,
                 {
                   id: Date.now(),
                   empId: user.id,
                   ...f,
-                  status: "Pending",
+                  status: autoApprove ? "Approved" : "Pending",
+                  approvedBy: autoApprove ? user.name : undefined,
                 },
               ]);
               setF({ ...f, task: "", periods: [] });
               notify(
-                user.role === "Manager"
+                autoApprove
+                  ? "บันทึกแผนงานเรียบร้อย (อนุมัติอัตโนมัติ)"
+                  : user.role === "PM"
                   ? "ส่งแผนแล้ว — รอ OM อนุมัติ"
-                  : "ส่งแผนแล้ว — รอ Manager อนุมัติ",
+                  : "ส่งแผนแล้ว — รอ PM อนุมัติ",
               );
             }}
           >
-            ส่งแผนเพื่ออนุมัติ
+            {isSelfApprover ? "บันทึกแผนงาน" : "ส่งแผนเพื่ออนุมัติ"}
           </button>
         </Card>
       )}
       <Card>
-        {user.role === "Manager" && (
+        {user.role === "PM" && (
           <label className="plan-person-filter">
             แสดงแผนงานของ
             <select
@@ -1443,6 +1437,7 @@ function Plan({ plans, setPlans, emps, user, notify }) {
                         </button>
                       </td>
                     )}
+                  {canCreatePlan && p.empId !== user.id && <td />}
                   {canCreatePlan && (
                     <td>
                       {p.empId === user.id && (
@@ -1690,7 +1685,7 @@ function Calendar({ plans, setPlans, emps, user }) {
             <p className="muted">{calendarOwnerName}</p>
           </div>
           <div className="calendar-controls">
-            {["Manager", "Admin", "MD", "GM", "OM"].includes(user.role) && (
+            {["PM", "Admin", "MD", "GM", "OM"].includes(user.role) && (
               <label className="calendar-filter">
                 พนักงาน
                 <select
@@ -1700,7 +1695,7 @@ function Calendar({ plans, setPlans, emps, user }) {
                   {["Admin", "MD", "GM", "OM"].includes(user.role) && (
                     <option value="all">แผนของทุกคน</option>
                   )}
-                  {user.role === "Manager" && (
+                  {user.role === "PM" && (
                     <option value={user.id}>แผนของฉัน</option>
                   )}
                   {calendarEmployees.map((employee) => (
@@ -1786,7 +1781,7 @@ function Calendar({ plans, setPlans, emps, user }) {
                           }
                           key={plan.id}
                         >
-                          {["Manager", "Supervisor"].includes(user.role) &&
+                          {["PM", "Supervisor"].includes(user.role) &&
                             plan.empId === user.id && (
                               <button
                                 type="button"
@@ -1803,7 +1798,7 @@ function Calendar({ plans, setPlans, emps, user }) {
                                 </span>
                                 {plan.status === "Approved"
                                   ? "อนุมัติแล้ว"
-                                  : "รอ Manager อนุมัติ"}
+                                  : "รอ PM อนุมัติ"}
                               </button>
                             )}
                           <button

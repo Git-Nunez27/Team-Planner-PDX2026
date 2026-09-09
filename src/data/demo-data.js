@@ -1,9 +1,9 @@
-export const employees = [
+﻿export const employees = [
   {id:7,code:'GM001',name:'วรรณา ศรีสุข',role:'GM',dept:'Executive',active:true,password:'gm1234'},
   {id:1,code:'EMP001',name:'สมชาย ใจดี',role:'Supervisor',dept:'Operations',active:true,managerId:3,password:'1234'},
   {id:2,code:'EMP002',name:'วิชัย พรหมดี',role:'Supervisor',dept:'Operations',active:true,managerId:3,password:'1234'},
-  {id:3,code:'EMP003',name:'กิตติ รุ่งเรือง',role:'Manager',dept:'Operations',active:true,password:'1234'},
-  {id:6,code:'EMP006',name:'ภัทร เจริงศิลป์',role:'Manager',dept:'Sales',active:true,password:'1234'},
+  {id:3,code:'EMP003',name:'กิตติ รุ่งเรือง',role:'PM',dept:'Operations',active:true,password:'1234'},
+  {id:6,code:'EMP006',name:'ภัทร เจริงศิลป์',role:'PM',dept:'Sales',active:true,password:'1234'},
   {id:4,code:'EMP004',name:'พิมพ์ชนก แสงทอง',role:'Supervisor',dept:'Sales',active:true,managerId:6,password:'1234'},
   {id:5,code:'EMP005',name:'อรทัย สุขใจ',role:'Supervisor',dept:'Sales',active:true,managerId:6,password:'1234'}
 ]
