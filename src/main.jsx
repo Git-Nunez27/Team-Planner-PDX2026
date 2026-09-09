@@ -1275,10 +1275,11 @@ function Approval({
   };
   const subordinateRole = user.role === "OM" ? "PM" : "Supervisor";
   const subordinateIds = emps
-    .filter(
-      (employee) =>
-        employee.role === subordinateRole && employee.managerId === user.id,
-    )
+    .filter((employee) => {
+      if (employee.role !== subordinateRole) return false;
+      if (user.role === "OM") return true; // OM can approve all PM pending plans
+      return employee.managerId === user.id; // PM approves Supervisors assigned to them
+    })
     .map((employee) => employee.id);
   const rows = plans.filter(
     (plan) => plan.status === "Pending" && subordinateIds.includes(plan.empId),
@@ -1885,6 +1886,8 @@ function Calendar({ plans, setPlans, emps, user }) {
                                 </span>
                                 {plan.status === "Approved"
                                   ? "อนุมัติแล้ว"
+                                  : emps.find((e) => e.id === plan.empId)?.role === "PM"
+                                  ? "รอ OM อนุมัติ"
                                   : "รอ PM อนุมัติ"}
                               </button>
                             )}
