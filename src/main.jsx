@@ -571,6 +571,8 @@ function Dashboard({ emps, plans, pending: initialPending, history, user }) {
     return <PersonalDashboard user={user} plans={plans} history={history} />;
   }
 
+  const [selectedEmpId, setSelectedEmpId] = useState("all");
+
   const isPM = user.role === "PM";
   const targetEmps = isPM
     ? emps.filter(
@@ -580,9 +582,19 @@ function Dashboard({ emps, plans, pending: initialPending, history, user }) {
       )
     : emps;
   const targetEmpIds = targetEmps.map((e) => e.id);
-  const targetPlans = isPM
+  const basePlans = isPM
     ? plans.filter((p) => targetEmpIds.includes(p.empId))
     : plans;
+
+  const activeTargetEmps =
+    selectedEmpId === "all"
+      ? targetEmps
+      : targetEmps.filter((e) => e.id === Number(selectedEmpId));
+
+  const targetPlans =
+    selectedEmpId === "all"
+      ? basePlans
+      : basePlans.filter((p) => p.empId === Number(selectedEmpId));
 
   const approved = targetPlans.filter((p) => p.status === "Approved").length;
   const pending = targetPlans.filter((p) => p.status === "Pending").length;
@@ -591,10 +603,10 @@ function Dashboard({ emps, plans, pending: initialPending, history, user }) {
   const totalPlans = targetPlans.length;
 
   // แผนตามแผนก
-  const depts = [...new Set(targetEmps.map((e) => e.dept))];
+  const depts = [...new Set(activeTargetEmps.map((e) => e.dept))];
   const deptStats = depts
     .map((dept) => {
-      const deptEmps = targetEmps.filter((e) => e.dept === dept).map((e) => e.id);
+      const deptEmps = activeTargetEmps.filter((e) => e.dept === dept).map((e) => e.id);
       const deptPlans = targetPlans.filter((p) => deptEmps.includes(p.empId));
       return {
         dept,
@@ -605,8 +617,8 @@ function Dashboard({ emps, plans, pending: initialPending, history, user }) {
     })
     .sort((a, b) => b.total - a.total);
 
-  // Top performers (Supervisor ที่มีงานอนุมัติมากสุด)
-  const supervisors = targetEmps.filter((e) => e.role === "Supervisor" && e.active);
+  // Top performers
+  const supervisors = activeTargetEmps.filter((e) => e.active);
   const topPerformers = supervisors
     .map((e) => {
       const empPlans = targetPlans.filter((p) => p.empId === e.id);
@@ -628,8 +640,9 @@ function Dashboard({ emps, plans, pending: initialPending, history, user }) {
     .sort((a, b) => b.approved - a.approved)
     .slice(0, 5);
 
-  // Bar chart — งานรายคน (top 6)
-  const barData = (supervisors.length > 0 ? supervisors : targetEmps.filter((e) => e.active))
+  // Bar chart — งานรายคน
+  const barData = activeTargetEmps
+    .filter((e) => e.active)
     .map((e) => ({
       name: e.name.split(" ")[0],
       total: targetPlans.filter((p) => p.empId === e.id).length,
@@ -659,13 +672,18 @@ function Dashboard({ emps, plans, pending: initialPending, history, user }) {
     .filter((h) => targetPlans.some((p) => p.id === h.planId))
     .slice(0, 5);
 
+  const selectedEmpName =
+    selectedEmpId !== "all"
+      ? targetEmps.find((e) => e.id === Number(selectedEmpId))?.name
+      : null;
+
   const kpiCards = [
     {
-      label: isPM ? "ทีมของฉัน" : "พนักงานทั้งหมด",
-      value: targetEmps.filter((e) => e.active).length,
+      label: selectedEmpId === "all" ? (isPM ? "ทีมของฉัน" : "พนักงานทั้งหมด") : "พนักงานที่เลือก",
+      value: activeTargetEmps.filter((e) => e.active).length,
       icon: "👥",
       color: "#1769aa",
-      sub: isPM ? "ผู้ใต้บังคับบัญชา + ตัวเอง" : `${emps.length} คนในระบบ`,
+      sub: selectedEmpId === "all" ? (isPM ? "ผู้ใต้บังคับบัญชา + ตัวเอง" : `${emps.length} คนในระบบ`) : selectedEmpName,
     },
     {
       label: "แผนทั้งหมด",
@@ -688,9 +706,35 @@ function Dashboard({ emps, plans, pending: initialPending, history, user }) {
 
   return (
     <>
-      <div className="db-header">
-        <h1>📊 Dashboard</h1>
-        <span className="db-date">{new Date().toLocaleDateString("th-TH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</span>
+      <div className="db-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1>📊 Dashboard</h1>
+          <p className="muted">
+            {selectedEmpId === "all"
+              ? isPM
+                ? "ภาพรวมทีมของฉัน (ผู้ใต้บังคับบัญชา + ตัวเอง)"
+                : "ภาพรวมพนักงานทุกคน"
+              : `แสดงข้อมูลเฉพาะ: ${selectedEmpName}`}
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <label className="plan-person-filter" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}>
+            <span>👤 กรองรายคน:</span>
+            <select
+              value={selectedEmpId}
+              onChange={(e) => setSelectedEmpId(e.target.value)}
+              style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #cbd5e1", outline: "none", fontSize: 14, cursor: "pointer" }}
+            >
+              <option value="all">{isPM ? "ทุกคนในทีม" : "พนักงานทุกคน"}</option>
+              {targetEmps.map((employee) => (
+                <option value={employee.id} key={employee.id}>
+                  {employee.name} ({employee.role})
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="db-date">{new Date().toLocaleDateString("th-TH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</span>
+        </div>
       </div>
 
       {/* KPI Cards */}
