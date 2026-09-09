@@ -1292,7 +1292,7 @@ function Plan({ plans, setPlans, emps, user, notify }) {
       employee.role === "Supervisor" && employee.managerId === user.id,
   );
   const managedIds = managedEmployees.map((employee) => employee.id);
-  const isSelfApprover = ["OM", "GM", "MD"].includes(user.role);
+  const isSelfApprover = ["PM", "OM", "GM", "MD"].includes(user.role);
   const canCreatePlan = ["PM", "Supervisor", "OM", "GM", "MD"].includes(user.role);
   let rows =
     user.role === "Supervisor"
@@ -1592,8 +1592,8 @@ function Calendar({ plans, setPlans, emps, user }) {
       : emps.filter(
         (employee) =>
           employee.active &&
-          employee.role === "Supervisor" &&
-          employee.managerId === user.id,
+          (employee.id === user.id ||
+            (employee.role === "Supervisor" && employee.managerId === user.id)),
       );
   const teamIds = calendarEmployees.map((employee) => employee.id);
   const visiblePlans = plans.filter(
