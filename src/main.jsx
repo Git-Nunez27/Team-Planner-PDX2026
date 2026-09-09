@@ -58,11 +58,12 @@ function App() {
         return;
       }
       if (data?.data) {
-        const employees = (data.data.employees ?? []).map((employee) =>
-          employee.role === "Employee"
-            ? { ...employee, role: "Supervisor" }
-            : employee,
-        );
+        const employees = (data.data.employees ?? []).map((employee) => {
+          // migrate old role names to current role names
+          if (employee.role === "Employee") return { ...employee, role: "Supervisor" };
+          if (employee.role === "Manager") return { ...employee, role: "PM" };
+          return employee;
+        });
         const plans = (data.data.plans ?? []).map((plan) => ({
           ...plan,
           priority: priorityLabels[plan.priority] ?? plan.priority,
@@ -1293,8 +1294,8 @@ function Plan({ plans, setPlans, emps, user, notify }) {
   );
   const managedIds = managedEmployees.map((employee) => employee.id);
   const isSelfApprover = ["OM", "GM", "MD"].includes(user.role);
-  const canCreatePlan = ["PM", "Supervisor", "OM", "GM", "MD"].includes(user.role);
-  // PM sees own plans or subordinate Supervisor plans
+  const canCreatePlan = ["PM", "Supervisor", "OM", "GM", "MD", "Admin"].includes(user.role);
+  // Admin and self-approvers see all plans; PM sees own + team; Supervisor sees own only
   let rows =
     user.role === "Supervisor"
       ? plans.filter((p) => p.empId === user.id)
@@ -1302,7 +1303,7 @@ function Plan({ plans, setPlans, emps, user, notify }) {
         ? plans.filter((p) => p.empId === Number(selectedEmployeeId))
         : isSelfApprover
           ? plans.filter((p) => p.empId === user.id)
-          : plans;
+          : plans; // Admin sees all
   return (
     <>
       <h1>📝 {["Supervisor", "PM", "OM", "GM", "MD"].includes(user.role) ? "My Plan" : "Plans"}</h1>
