@@ -152,7 +152,7 @@ function App() {
     isGM = user.role === "GM";
   const pending = plans.filter((p) => p.status === "Pending").length;
   const menu = [
-    ["plan", "📝", isManager || isSupervisor || isAdmin || isOM || isGM ? "Plans" : "My Plan"],
+    ["plan", "📝", isAdmin ? "Plans" : "My Plan"],
     ["calendar", "📅", "Calendar"],
     ["dashboard", "📊", "Dashboard"],
     ...(isAdmin
@@ -1292,8 +1292,9 @@ function Plan({ plans, setPlans, emps, user, notify }) {
       employee.role === "Supervisor" && employee.managerId === user.id,
   );
   const managedIds = managedEmployees.map((employee) => employee.id);
-  const isSelfApprover = ["PM", "OM", "GM", "MD"].includes(user.role);
+  const isSelfApprover = ["OM", "GM", "MD"].includes(user.role);
   const canCreatePlan = ["PM", "Supervisor", "OM", "GM", "MD"].includes(user.role);
+  // PM sees own plans or subordinate Supervisor plans
   let rows =
     user.role === "Supervisor"
       ? plans.filter((p) => p.empId === user.id)
@@ -1304,7 +1305,7 @@ function Plan({ plans, setPlans, emps, user, notify }) {
           : plans;
   return (
     <>
-      <h1>📝 {["Supervisor", "OM", "GM", "MD"].includes(user.role) ? "My Plan" : "Plans"}</h1>
+      <h1>📝 {["Supervisor", "PM", "OM", "GM", "MD"].includes(user.role) ? "My Plan" : "Plans"}</h1>
       {canCreatePlan && (
         <Card>
           <div className="form-grid">
@@ -1379,7 +1380,7 @@ function Plan({ plans, setPlans, emps, user, notify }) {
         </Card>
       )}
       <Card>
-        {user.role === "PM" && (
+        {user.role === "PM" && managedEmployees.length > 0 && (
           <label className="plan-person-filter">
             แสดงแผนงานของ
             <select
