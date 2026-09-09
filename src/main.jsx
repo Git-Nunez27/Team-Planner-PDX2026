@@ -1249,6 +1249,8 @@ function Approval({
   user,
   notify,
 }) {
+  const [selectedEmpId, setSelectedEmpId] = useState("all");
+
   const updatePlan = (plan, status, action, comment = "") => {
     setPlans(
       plans.map((item) =>
@@ -1274,18 +1276,47 @@ function Approval({
       ...history,
     ]);
   };
-  const subordinateIds = emps
-    .filter((employee) => {
-      if (user.role === "OM") return employee.role === "PM";
-      return employee.managerId === user.id;
-    })
-    .map((employee) => employee.id);
-  const rows = plans.filter(
+
+  const subordinateEmps = emps.filter((employee) => {
+    if (user.role === "OM") return employee.role === "PM";
+    return employee.managerId === user.id;
+  });
+  const subordinateIds = subordinateEmps.map((employee) => employee.id);
+
+  const pendingPlans = plans.filter(
     (plan) => plan.status === "Pending" && subordinateIds.includes(plan.empId),
   );
+
+  const rows =
+    selectedEmpId === "all"
+      ? pendingPlans
+      : pendingPlans.filter((plan) => plan.empId === Number(selectedEmpId));
+
   return (
     <>
-      <h1>🔵 Approval Center</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+        <h1>🔵 Approval Center</h1>
+        {subordinateEmps.length > 0 && (
+          <label className="plan-person-filter" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}>
+            <span>👤 กรองพนักงาน:</span>
+            <select
+              value={selectedEmpId}
+              onChange={(e) => setSelectedEmpId(e.target.value)}
+              style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #cbd5e1", outline: "none", fontSize: 14, cursor: "pointer" }}
+            >
+              <option value="all">พนักงานทุกคน ({pendingPlans.length} รายการค้าง)</option>
+              {subordinateEmps.map((employee) => {
+                const count = pendingPlans.filter((p) => p.empId === employee.id).length;
+                return (
+                  <option value={employee.id} key={employee.id}>
+                    {employee.name} ({employee.role}) {count > 0 ? `[รออนุมัติ ${count}]` : ""}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+        )}
+      </div>
       <Card>
         <div className="approval-list">
           {rows.map((p) => {
@@ -1338,7 +1369,13 @@ function Approval({
               </div>
             );
           })}
-          {!rows.length && <p>ไม่มีรายการรออนุมัติ</p>}
+          {!rows.length && (
+            <p className="muted" style={{ padding: "16px 0", textAlign: "center" }}>
+              {selectedEmpId === "all"
+                ? "ไม่มีรายการรออนุมัติ"
+                : `ไม่มีรายการรออนุมัติของ ${emps.find((x) => x.id === Number(selectedEmpId))?.name}`}
+            </p>
+          )}
         </div>
       </Card>
     </>
