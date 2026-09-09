@@ -907,12 +907,12 @@ function Admin({ emps, setEmps, plans, setPlans, notify }) {
     managerId: "",
   });
   const leaderConfig = {
-    Supervisor: { role: "PM", label: "PM" },
-    PM: { role: "OM", label: "OM (Operation Manager)" },
+    Supervisor: { roles: ["PM", "OM"], label: "ผู้บังคับบัญชา (PM / OM)" },
+    PM: { roles: ["PM", "OM"], label: "ผู้บังคับบัญชา (PM / OM)" },
   };
   const leader = leaderConfig[form.role];
   const leaders = leader
-    ? emps.filter((employee) => employee.role === leader.role)
+    ? emps.filter((employee) => leader.roles.includes(employee.role))
     : [];
   const roleOrder = { MD: 1, GM: 2, OM: 3, PM: 4, Supervisor: 5, Admin: 6 };
   return (
@@ -1030,10 +1030,16 @@ function Admin({ emps, setEmps, plans, setPlans, notify }) {
                             <button
                               className="btn small"
                               onClick={() => {
-                                const expectedLeaderRole =
-                                  e.role === "Supervisor" ? "PM" : "OM";
+                                const candidates = emps.filter(
+                                  (m) =>
+                                    m.id !== e.id &&
+                                    ["PM", "OM"].includes(m.role),
+                                );
+                                const candidatesList = candidates
+                                  .map((c) => `ID ${c.id}: ${c.name} (${c.role})`)
+                                  .join("\n");
                                 const newManager = prompt(
-                                  `เลือก ${expectedLeaderRole} ID:`,
+                                  `เลือก ID ผู้บังคับบัญชา (PM หรือ OM):\n\n${candidatesList}`,
                                   e.managerId || "",
                                 );
                                 if (newManager === null) return;
@@ -1042,13 +1048,9 @@ function Admin({ emps, setEmps, plans, setPlans, notify }) {
                                   : undefined;
                                 if (
                                   mgrId &&
-                                  !emps.find(
-                                    (m) =>
-                                      m.id === mgrId &&
-                                      m.role === expectedLeaderRole,
-                                  )
+                                  !candidates.find((m) => m.id === mgrId)
                                 ) {
-                                  notify(`${expectedLeaderRole} ID ไม่ถูกต้อง`);
+                                  notify("ID ผู้บังคับบัญชาไม่ถูกต้อง");
                                   return;
                                 }
                                 setEmps(
@@ -1058,7 +1060,7 @@ function Admin({ emps, setEmps, plans, setPlans, notify }) {
                                       : x,
                                   ),
                                 );
-                                notify(`อัปเดต ${expectedLeaderRole} แล้ว`);
+                                notify("อัปเดตผู้บังคับบัญชาแล้ว");
                               }}
                             >
                               👨‍💼 เปลี่ยนผู้บังคับบัญชา
@@ -1135,8 +1137,7 @@ function Team({ emps, plans, user }) {
   const teamEmployees =
     user.role === "PM"
       ? emps.filter(
-        (employee) =>
-          employee.role === "Supervisor" && employee.managerId === user.id,
+        (employee) => employee.managerId === user.id,
       )
       : ["Admin", "MD", "GM", "OM"].includes(user.role)
         ? emps
@@ -1273,12 +1274,10 @@ function Approval({
       ...history,
     ]);
   };
-  const subordinateRole = user.role === "OM" ? "PM" : "Supervisor";
   const subordinateIds = emps
     .filter((employee) => {
-      if (employee.role !== subordinateRole) return false;
-      if (user.role === "OM") return true; // OM can approve all PM pending plans
-      return employee.managerId === user.id; // PM approves Supervisors assigned to them
+      if (user.role === "OM") return employee.role === "PM";
+      return employee.managerId === user.id;
     })
     .map((employee) => employee.id);
   const rows = plans.filter(
@@ -1375,8 +1374,7 @@ function Plan({ plans, setPlans, emps, user, notify }) {
       ),
     );
   const managedEmployees = emps.filter(
-    (employee) =>
-      employee.role === "Supervisor" && employee.managerId === user.id,
+    (employee) => employee.managerId === user.id,
   );
   const managedIds = managedEmployees.map((employee) => employee.id);
   const isSelfApprover = ["OM", "GM", "MD"].includes(user.role);
@@ -1680,8 +1678,7 @@ function Calendar({ plans, setPlans, emps, user }) {
       : emps.filter(
         (employee) =>
           employee.active &&
-          (employee.id === user.id ||
-            (employee.role === "Supervisor" && employee.managerId === user.id)),
+          (employee.id === user.id || employee.managerId === user.id),
       );
   const teamIds = calendarEmployees.map((employee) => employee.id);
   const visiblePlans = plans.filter(
