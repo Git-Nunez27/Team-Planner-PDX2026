@@ -566,33 +566,50 @@ function PersonalDashboard({ user, plans, history }) {
   );
 }
 
-function Dashboard({ emps, plans, pending, history, user }) {
+function Dashboard({ emps, plans, pending: initialPending, history, user }) {
   if (!OVERVIEW_ROLES.includes(user.role)) {
     return <PersonalDashboard user={user} plans={plans} history={history} />;
   }
-  const approved = plans.filter((p) => p.status === "Approved").length;
-  const rejected = plans.filter((p) => p.status === "Cancelled").length;
-  const inProgress = plans.filter((p) => p.done).length;
-  const totalPlans = plans.length;
+
+  const isPM = user.role === "PM";
+  const targetEmps = isPM
+    ? emps.filter(
+        (e) =>
+          e.id === user.id ||
+          (e.role === "Supervisor" && e.managerId === user.id),
+      )
+    : emps;
+  const targetEmpIds = targetEmps.map((e) => e.id);
+  const targetPlans = isPM
+    ? plans.filter((p) => targetEmpIds.includes(p.empId))
+    : plans;
+
+  const approved = targetPlans.filter((p) => p.status === "Approved").length;
+  const pending = targetPlans.filter((p) => p.status === "Pending").length;
+  const rejected = targetPlans.filter((p) => p.status === "Cancelled").length;
+  const inProgress = targetPlans.filter((p) => p.done).length;
+  const totalPlans = targetPlans.length;
 
   // แผนตามแผนก
-  const depts = [...new Set(emps.map((e) => e.dept))];
-  const deptStats = depts.map((dept) => {
-    const deptEmps = emps.filter((e) => e.dept === dept).map((e) => e.id);
-    const deptPlans = plans.filter((p) => deptEmps.includes(p.empId));
-    return {
-      dept,
-      total: deptPlans.length,
-      approved: deptPlans.filter((p) => p.status === "Approved").length,
-      pending: deptPlans.filter((p) => p.status === "Pending").length,
-    };
-  }).sort((a, b) => b.total - a.total);
+  const depts = [...new Set(targetEmps.map((e) => e.dept))];
+  const deptStats = depts
+    .map((dept) => {
+      const deptEmps = targetEmps.filter((e) => e.dept === dept).map((e) => e.id);
+      const deptPlans = targetPlans.filter((p) => deptEmps.includes(p.empId));
+      return {
+        dept,
+        total: deptPlans.length,
+        approved: deptPlans.filter((p) => p.status === "Approved").length,
+        pending: deptPlans.filter((p) => p.status === "Pending").length,
+      };
+    })
+    .sort((a, b) => b.total - a.total);
 
   // Top performers (Supervisor ที่มีงานอนุมัติมากสุด)
-  const supervisors = emps.filter((e) => e.role === "Supervisor" && e.active);
+  const supervisors = targetEmps.filter((e) => e.role === "Supervisor" && e.active);
   const topPerformers = supervisors
     .map((e) => {
-      const empPlans = plans.filter((p) => p.empId === e.id);
+      const empPlans = targetPlans.filter((p) => p.empId === e.id);
       return {
         name: e.name,
         dept: e.dept,
@@ -600,7 +617,11 @@ function Dashboard({ emps, plans, pending, history, user }) {
         approved: empPlans.filter((p) => p.status === "Approved").length,
         done: empPlans.filter((p) => p.done).length,
         rate: empPlans.length
-          ? Math.round((empPlans.filter((p) => p.status === "Approved").length / empPlans.length) * 100)
+          ? Math.round(
+              (empPlans.filter((p) => p.status === "Approved").length /
+                empPlans.length) *
+                100,
+            )
           : 0,
       };
     })
@@ -608,10 +629,10 @@ function Dashboard({ emps, plans, pending, history, user }) {
     .slice(0, 5);
 
   // Bar chart — งานรายคน (top 6)
-  const barData = supervisors
+  const barData = (supervisors.length > 0 ? supervisors : targetEmps.filter((e) => e.active))
     .map((e) => ({
       name: e.name.split(" ")[0],
-      total: plans.filter((p) => p.empId === e.id).length,
+      total: targetPlans.filter((p) => p.empId === e.id).length,
     }))
     .sort((a, b) => b.total - a.total)
     .slice(0, 6);
@@ -628,18 +649,38 @@ function Dashboard({ emps, plans, pending, history, user }) {
   // Priority breakdown
   const priorityStats = ["สูง", "กลาง", "ต่ำ"].map((p) => ({
     label: p,
-    count: plans.filter((pl) => pl.priority === p).length,
+    count: targetPlans.filter((pl) => pl.priority === p).length,
     color: p === "สูง" ? "#b42318" : p === "กลาง" ? "#b54708" : "#067647",
   }));
   const prMax = Math.max(...priorityStats.map((p) => p.count), 1);
 
-  // Recent history (latest 5)
-  const recentHistory = [...(history ?? [])].slice(0, 5);
+  // Recent history (latest 5 related to target plans)
+  const recentHistory = (history ?? [])
+    .filter((h) => targetPlans.some((p) => p.id === h.planId))
+    .slice(0, 5);
 
   const kpiCards = [
-    { label: "พนักงานทั้งหมด", value: emps.filter(e=>e.active).length, icon: "👥", color: "#1769aa", sub: `${emps.length} คนในระบบ` },
-    { label: "แผนทั้งหมด", value: totalPlans, icon: "📝", color: "#7c3aed", sub: `${new Set(plans.map(p=>p.empId)).size} คนส่งแผน` },
-    { label: "อนุมัติแล้ว", value: approved, icon: "✅", color: "#15803d", sub: totalPlans ? `${Math.round(approved/totalPlans*100)}% ของทั้งหมด` : "0%" },
+    {
+      label: isPM ? "ทีมของฉัน" : "พนักงานทั้งหมด",
+      value: targetEmps.filter((e) => e.active).length,
+      icon: "👥",
+      color: "#1769aa",
+      sub: isPM ? "ผู้ใต้บังคับบัญชา + ตัวเอง" : `${emps.length} คนในระบบ`,
+    },
+    {
+      label: "แผนทั้งหมด",
+      value: totalPlans,
+      icon: "📝",
+      color: "#7c3aed",
+      sub: `${new Set(targetPlans.map((p) => p.empId)).size} คนส่งแผน`,
+    },
+    {
+      label: "อนุมัติแล้ว",
+      value: approved,
+      icon: "✅",
+      color: "#15803d",
+      sub: totalPlans ? `${Math.round((approved / totalPlans) * 100)}% ของทั้งหมด` : "0%",
+    },
     { label: "รออนุมัติ", value: pending, icon: "⏳", color: "#d97706", sub: "ต้องดำเนินการ" },
     { label: "เสร็จสมบูรณ์", value: inProgress, icon: "🏆", color: "#0891b2", sub: "mark done แล้ว" },
     { label: "ยกเลิก/ปฏิเสธ", value: rejected, icon: "❌", color: "#d92d20", sub: "ต้องแก้ไข" },
