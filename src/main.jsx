@@ -37,7 +37,11 @@ function NotificationBell({ user, notifications, setNotifications, setPage }) {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, []);
 
   const markAsRead = (id) => {
@@ -79,24 +83,34 @@ function NotificationBell({ user, notifications, setNotifications, setPage }) {
       </button>
 
       {isOpen && (
-        <div className="notif-dropdown">
-          <div className="notif-header">
-            <div className="notif-title">
-              🔔 การแจ้งเตือน {unreadCount > 0 && <span className="notif-unread-count">({unreadCount} ใหม่)</span>}
-            </div>
-            <div className="notif-actions">
-              {unreadCount > 0 && (
-                <button className="notif-action-btn" onClick={markAllAsRead}>
-                  อ่านทั้งหมด
+        <>
+          <div className="notif-backdrop" onClick={() => setIsOpen(false)} />
+          <div className="notif-dropdown">
+            <div className="notif-header">
+              <div className="notif-title">
+                🔔 การแจ้งเตือน {unreadCount > 0 && <span className="notif-unread-count">({unreadCount} ใหม่)</span>}
+              </div>
+              <div className="notif-actions">
+                {unreadCount > 0 && (
+                  <button className="notif-action-btn" onClick={markAllAsRead}>
+                    อ่านทั้งหมด
+                  </button>
+                )}
+                {userNotifs.length > 0 && (
+                  <button className="notif-action-btn danger" onClick={clearAll}>
+                    ลบทั้งหมด
+                  </button>
+                )}
+                <button
+                  className="notif-close-btn"
+                  onClick={() => setIsOpen(false)}
+                  title="ปิด"
+                  aria-label="ปิด"
+                >
+                  ✕
                 </button>
-              )}
-              {userNotifs.length > 0 && (
-                <button className="notif-action-btn danger" onClick={clearAll}>
-                  ลบทั้งหมด
-                </button>
-              )}
+              </div>
             </div>
-          </div>
 
           <div className="notif-list">
             {userNotifs.length === 0 ? (
@@ -134,6 +148,7 @@ function NotificationBell({ user, notifications, setNotifications, setPage }) {
             )}
           </div>
         </div>
+      </>
       )}
     </div>
   );
