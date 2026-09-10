@@ -23,17 +23,136 @@ const priorityClasses = {
   ต่ำ: "low",
 };
 
+function NotificationBell({ user, notifications, setNotifications, setPage }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const userNotifs = (notifications ?? []).filter((n) => n.targetEmpId === user.id);
+  const unreadCount = userNotifs.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const markAsRead = (id) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+  };
+
+  const markAllAsRead = () => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.targetEmpId === user.id ? { ...n, read: true } : n))
+    );
+  };
+
+  const clearAll = () => {
+    setNotifications((prev) => prev.filter((n) => n.targetEmpId !== user.id));
+  };
+
+  const handleItemClick = (n) => {
+    markAsRead(n.id);
+    setIsOpen(false);
+    if (setPage) {
+      setPage("history");
+    }
+  };
+
+  return (
+    <div className="notif-wrapper" ref={dropdownRef}>
+      <button
+        className="notif-btn"
+        onClick={() => setIsOpen(!isOpen)}
+        title="การแจ้งเตือน"
+        aria-label="การแจ้งเตือน"
+      >
+        <span className="notif-icon">🔔</span>
+        {unreadCount > 0 && (
+          <span className="notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="notif-dropdown">
+          <div className="notif-header">
+            <div className="notif-title">
+              🔔 การแจ้งเตือน {unreadCount > 0 && <span className="notif-unread-count">({unreadCount} ใหม่)</span>}
+            </div>
+            <div className="notif-actions">
+              {unreadCount > 0 && (
+                <button className="notif-action-btn" onClick={markAllAsRead}>
+                  อ่านทั้งหมด
+                </button>
+              )}
+              {userNotifs.length > 0 && (
+                <button className="notif-action-btn danger" onClick={clearAll}>
+                  ลบทั้งหมด
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="notif-list">
+            {userNotifs.length === 0 ? (
+              <div className="notif-empty">ไม่มีการแจ้งเตือน</div>
+            ) : (
+              userNotifs.map((n) => (
+                <div
+                  key={n.id}
+                  className={`notif-item ${!n.read ? "unread" : ""}`}
+                  onClick={() => handleItemClick(n)}
+                >
+                  <div className="notif-item-header">
+                    <span className={`notif-tag action-${n.action?.toLowerCase()}`}>
+                      {n.action === "Replied"
+                        ? "↩ Reply งาน"
+                        : n.action === "Cancelled"
+                        ? "❌ ยกเลิกงาน"
+                        : "✓ อนุมัติงาน"}
+                    </span>
+                    <span className="notif-time">{n.time}</span>
+                  </div>
+                  <div className="notif-task">
+                    <strong>งาน:</strong> {n.taskName}
+                  </div>
+                  <div className="notif-by">
+                    <strong>ผู้บังคับบัญชา:</strong> {n.actionBy}
+                  </div>
+                  {n.comment && (
+                    <div className="notif-comment">
+                      "{n.comment}"
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [user, setUser] = useState(null),
     [page, setPage] = useState("calendar");
   const [emps, setEmps] = useState([]),
     [plans, setPlans] = useState([]),
-    [history, setHistory] = useState([]);
+    [history, setHistory] = useState([]),
+    [notifications, setNotifications] = useState([]);
   const [dataReady, setDataReady] = useState(false);
   const [dataError, setDataError] = useState("");
   const [toast, setToast] = useState("");
   const savedStateRef = useRef("");
   const hasPendingSaveRef = useRef(false);
+  const notifiedIdsRef = useRef(new Set());
+
   useEffect(() => {
     let active = true;
     const loadData = async () => {
@@ -72,6 +191,7 @@ function App() {
           employees,
           plans,
           history: data.data.history ?? [],
+          notifications: data.data.notifications ?? [],
         });
         // ✅ อัปเดต state เฉพาะเมื่อข้อมูลจาก Supabase ต่างจาก local จริงๆ
         if (incoming !== savedStateRef.current) {
@@ -79,6 +199,7 @@ function App() {
           setEmps(employees);
           setPlans(plans);
           setHistory(data.data.history ?? []);
+          setNotifications(data.data.notifications ?? []);
         }
       }
       setDataReady(true);
@@ -94,7 +215,7 @@ function App() {
   const latestStateRef = useRef(null);
   useEffect(() => {
     if (!dataReady || !supabase) return;
-    const nextState = { employees: emps, plans, history };
+    const nextState = { employees: emps, plans, history, notifications };
     const serializedState = JSON.stringify(nextState);
     if (serializedState === savedStateRef.current) return;
 
@@ -127,7 +248,27 @@ function App() {
       // effect ใหม่จะ schedule timer ใหม่พร้อม state ล่าสุดแทน
       window.clearTimeout(saveData);
     };
-  }, [dataReady, emps, plans, history]);
+  }, [dataReady, emps, plans, history, notifications]);
+
+  // Real-time toast alert when supervisor replies or cancels a plan
+  useEffect(() => {
+    if (!user) return;
+    const userUnreadNotifs = (notifications ?? []).filter(
+      (n) => n.targetEmpId === user.id && !n.read && !notifiedIdsRef.current.has(n.id)
+    );
+    if (userUnreadNotifs.length > 0) {
+      userUnreadNotifs.forEach((n) => {
+        notifiedIdsRef.current.add(n.id);
+        const actionLabel =
+          n.action === "Replied"
+            ? "Reply ตอบกลับ"
+            : n.action === "Cancelled"
+            ? "ยกเลิก"
+            : "อนุมัติ";
+        notify(`🔔 ผู้บังคับบัญชา (${n.actionBy}) ได้${actionLabel}งาน: "${n.taskName}"`);
+      });
+    }
+  }, [notifications, user]);
   const notify = (m) => {
     setToast(m);
     setTimeout(() => setToast(""), 1800);
@@ -197,7 +338,15 @@ function App() {
           ☰
         </button>
         <div className="logo">TEAM PLANNER</div>
-        <div className="user">{user.role} · {user.name}</div>
+        <div className="user">
+          <NotificationBell
+            user={user}
+            notifications={notifications}
+            setNotifications={setNotifications}
+            setPage={setPage}
+          />
+          <span>{user.role} · {user.name}</span>
+        </div>
       </header>
       <div className="layout">
         <aside className="drawer">
@@ -235,6 +384,7 @@ function App() {
               setPlans={setPlans}
               history={history}
               setHistory={setHistory}
+              setNotifications={setNotifications}
               emps={emps}
               user={user}
               notify={notify}
@@ -1245,6 +1395,7 @@ function Approval({
   setPlans,
   history,
   setHistory,
+  setNotifications,
   emps,
   user,
   notify,
@@ -1268,6 +1419,7 @@ function Approval({
       {
         id: Date.now(),
         planId: plan.id,
+        empId: plan.empId,
         action,
         by: user.name,
         time: new Date().toLocaleString("th-TH"),
@@ -1275,6 +1427,22 @@ function Approval({
       },
       ...history,
     ]);
+    if (setNotifications) {
+      setNotifications((prev) => [
+        {
+          id: Date.now() + Math.random(),
+          targetEmpId: plan.empId,
+          planId: plan.id,
+          taskName: plan.task,
+          action,
+          actionBy: user.name,
+          comment,
+          time: new Date().toLocaleString("th-TH"),
+          read: false,
+        },
+        ...(prev ?? []),
+      ]);
+    }
   };
 
   const subordinateEmps = emps.filter((employee) => {
@@ -1954,13 +2122,11 @@ function Calendar({ plans, setPlans, emps, user }) {
   );
 }
 function History({ history, plans, user }) {
-  const visibleHistory =
-    user.role === "Supervisor"
-      ? history.filter((h) => {
-        const plan = plans.find((p) => p.id === h.planId);
-        return plan?.empId === user.id;
-      })
-      : history;
+  const visibleHistory = (history ?? []).filter((h) => {
+    const plan = plans.find((p) => p.id === h.planId);
+    return (h.empId ?? plan?.empId) === user.id;
+  });
+
   return (
     <>
       <h1>🕒 Approval History</h1>
@@ -1970,23 +2136,51 @@ function History({ history, plans, user }) {
             <thead>
               <tr>
                 <th>เวลา</th>
+                <th>งาน (Task)</th>
                 <th>Action</th>
                 <th>ผู้ดำเนินการ</th>
-                <th>Comment</th>
+                <th>Comment / เหตุผล</th>
               </tr>
             </thead>
             <tbody>
               {visibleHistory.length === 0 && (
-                <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)" }}>ไม่มีประวัติการอนุมัติ</td></tr>
-              )}
-              {visibleHistory.map((h) => (
-                <tr key={h.id}>
-                  <td>{h.time}</td>
-                  <td>{h.action}</td>
-                  <td>{h.by}</td>
-                  <td>{h.comment || "-"}</td>
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "center", color: "var(--muted)", padding: "24px" }}>
+                    ไม่มีประวัติการอนุมัติของคุณ
+                  </td>
                 </tr>
-              ))}
+              )}
+              {visibleHistory.map((h) => {
+                const plan = plans.find((p) => p.id === h.planId);
+                const actionClass =
+                  h.action === "Approved"
+                    ? "Approved"
+                    : h.action === "Replied"
+                    ? "Replied"
+                    : h.action === "Cancelled"
+                    ? "Cancelled"
+                    : "";
+                const actionText =
+                  h.action === "Approved"
+                    ? "✓ อนุมัติแล้ว"
+                    : h.action === "Replied"
+                    ? "↩ Reply (แก้ไข)"
+                    : h.action === "Cancelled"
+                    ? "❌ ยกเลิก"
+                    : h.action;
+
+                return (
+                  <tr key={h.id}>
+                    <td>{h.time}</td>
+                    <td><strong>{plan?.task || "-"}</strong></td>
+                    <td>
+                      <span className={`status ${actionClass}`}>{actionText}</span>
+                    </td>
+                    <td>{h.by}</td>
+                    <td>{h.comment || "-"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
