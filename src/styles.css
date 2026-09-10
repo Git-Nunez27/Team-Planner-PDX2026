@@ -619,6 +619,16 @@ th {
   border-color: #b8c0cb;
   background: #f5f7f8;
 }
+.calendar-event-done.replied {
+  color: #b45309;
+  cursor: default;
+}
+.calendar-event-done.replied .check-box {
+  border-color: #d97706;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 10px;
+}
 .calendar-event-note {
   display: block;
   margin: 2px 0 4px;
@@ -865,13 +875,24 @@ th {
     padding: 10px 12px;
   }
   .user {
-    gap: 5px;
-  }
-  .user {
     max-width: 65%;
+    overflow: visible;
+  }
+  .user > span {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: inline-block;
+    max-width: 130px;
+  }
+  .notif-dropdown {
+    position: fixed;
+    top: 56px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-width: none;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
   }
   .logout {
     font-size: 12px;

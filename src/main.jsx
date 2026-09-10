@@ -1888,7 +1888,7 @@ function Calendar({ plans, setPlans, emps, user }) {
   const teamIds = calendarEmployees.map((employee) => employee.id);
   const visiblePlans = plans.filter(
     (plan) =>
-      !["Replied", "Cancelled"].includes(plan.status) &&
+      plan.status !== "Cancelled" &&
       (plan.empId === user.id || teamIds.includes(plan.empId)) &&
       (employeeId === "all" || plan.empId === Number(employeeId)),
   );
@@ -2078,7 +2078,7 @@ function Calendar({ plans, setPlans, emps, user }) {
                                 className={
                                   "calendar-event-done" +
                                   (plan.done ? " checked" : "") +
-                                  (plan.status !== "Approved" ? " disabled" : "")
+                                  (plan.status === "Replied" ? " replied" : plan.status !== "Approved" ? " disabled" : "")
                                 }
                                 disabled={plan.status !== "Approved"}
                                 onClick={() => completePlan(plan)}
@@ -2088,6 +2088,8 @@ function Calendar({ plans, setPlans, emps, user }) {
                                 </span>
                                 {plan.status === "Approved"
                                   ? "อนุมัติแล้ว"
+                                  : plan.status === "Replied"
+                                  ? "↩ รอแก้ไข"
                                   : emps.find((e) => e.id === plan.empId)?.role === "PM"
                                   ? "รอ OM อนุมัติ"
                                   : "รอ PM อนุมัติ"}
