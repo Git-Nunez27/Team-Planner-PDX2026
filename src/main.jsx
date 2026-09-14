@@ -1587,12 +1587,83 @@ function Plan({ plans, setPlans, emps, user, notify }) {
         ? current.periods.filter((item) => item !== period)
         : [...current.periods, period],
     }));
-  const toggleDone = (planId) =>
+  const completePlan = (plan) => {
+    if (plan.done) {
+      if (!window.confirm("ยืนยันยกเลิกสถานะทำเสร็จงานนี้หรือไม่?")) return;
+      setPlans(
+        plans.map((item) =>
+          item.id === plan.id ? { ...item, done: false } : item,
+        ),
+      );
+      notify("ยกเลิกการทำเสร็จ");
+      return;
+    }
+    const completionNote = window.prompt(
+      "กรอกรายละเอียดผลการทำงานก่อนยืนยัน",
+    );
+    if (completionNote === null) return;
+    if (!completionNote.trim()) {
+      window.alert("กรุณากรอกรายละเอียดผลการทำงาน");
+      return;
+    }
     setPlans(
-      plans.map((plan) =>
-        plan.id === planId ? { ...plan, done: !plan.done } : plan,
+      plans.map((item) =>
+        item.id === plan.id
+          ? {
+            ...item,
+            done: true,
+            completionNote: completionNote.trim(),
+            completedAt: new Date().toISOString(),
+          }
+          : item,
       ),
     );
+    notify("ทำเสร็จแล้ว");
+  };
+  const exportPlans = () => {
+    const sortedPlans = rows
+      .slice()
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    const exportRows = sortedPlans.map((plan) => {
+      const emp = emps.find((employee) => employee.id === plan.empId);
+      return {
+        วันที่: plan.date,
+        ช่วงเวลา: plan.periods?.join(", ") || "-",
+        รหัสพนักงาน: emp?.code || "-",
+        พนักงาน: emp?.name ?? "",
+        แผนก: emp?.dept || "-",
+        แผนงาน: plan.task,
+        ความสำคัญ: plan.priority,
+        สถานะ: plan.status,
+        ผู้อนุมัติ: plan.status === "Approved" ? (plan.approvedBy || "-") : "-",
+        สถานะงาน: plan.done ? "เสร็จสมบูรณ์" : "ยังไม่เสร็จ",
+        รายละเอียดผลการทำงาน: plan.completionNote || "-",
+        เวลาที่สำเร็จงาน: plan.completedAt
+          ? new Date(plan.completedAt).toLocaleString("th-TH")
+          : "-",
+        หมายเหตุ: plan.comment || "-",
+      };
+    });
+    const sheet = XLSX.utils.json_to_sheet(exportRows);
+    sheet["!cols"] = [
+      { wch: 12 }, // วันที่
+      { wch: 12 }, // ช่วงเวลา
+      { wch: 14 }, // รหัสพนักงาน
+      { wch: 20 }, // พนักงาน
+      { wch: 15 }, // แผนก
+      { wch: 35 }, // แผนงาน
+      { wch: 12 }, // ความสำคัญ
+      { wch: 14 }, // สถานะ
+      { wch: 20 }, // ผู้อนุมัติ
+      { wch: 16 }, // สถานะงาน
+      { wch: 40 }, // รายละเอียดผลการทำงาน
+      { wch: 22 }, // เวลาที่สำเร็จงาน
+      { wch: 25 }, // หมายเหตุ
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, "Plans Report");
+    XLSX.writeFile(workbook, `plans-report-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
   const managedEmployees = emps.filter(
     (employee) => employee.managerId === user.id,
   );
@@ -1610,7 +1681,12 @@ function Plan({ plans, setPlans, emps, user, notify }) {
           : plans; // Admin sees all
   return (
     <>
-      <h1>📝 {["Supervisor", "PM", "OM", "GM", "MD"].includes(user.role) ? "My Plan" : "Plans"}</h1>
+      <div className="page-header">
+        <h1>📝 {["Supervisor", "PM", "OM", "GM", "MD"].includes(user.role) ? "My Plan" : "Plans"}</h1>
+        <button className="btn primary" onClick={exportPlans}>
+          Export Excel
+        </button>
+      </div>
       {canCreatePlan && (
         <Card>
           <div className="form-grid">
@@ -1722,7 +1798,14 @@ function Plan({ plans, setPlans, emps, user, notify }) {
                   <td>{p.date}</td>
                   <td>{p.periods?.join(", ") || "-"}</td>
                   <td>{emps.find((e) => e.id === p.empId)?.name}</td>
-                  <td>{p.task}</td>
+                  <td>
+                    <div>{p.task}</div>
+                    {p.completionNote && (
+                      <small style={{ display: "block", color: "#0891b2", marginTop: "4px" }}>
+                        📝 รายละเอียดผลงาน: {p.completionNote}
+                      </small>
+                    )}
+                  </td>
                   <td>{p.priority}</td>
                   <td>
                     <span className={"status " + p.status}>{p.status}</span>
@@ -1734,10 +1817,7 @@ function Plan({ plans, setPlans, emps, user, notify }) {
                       <td>
                         <button
                           className={"btn small " + (p.done ? "success" : "")}
-                          onClick={() => {
-                            toggleDone(p.id);
-                            notify(p.done ? "ยกเลิกการทำเสร็จ" : "ทำเสร็จแล้ว");
-                          }}
+                          onClick={() => completePlan(p)}
                         >
                           {p.done ? "✓ เสร็จแล้ว" : "○ ยังไม่เสร็จ"}
                         </button>
@@ -1778,13 +1858,15 @@ function Calendar({ plans, setPlans, emps, user }) {
     );
   const completePlan = (plan) => {
     if (plan.done) {
+      if (!window.confirm("ยืนยันยกเลิกสถานะทำเสร็จงานนี้หรือไม่?")) return;
       toggleDone(plan.id);
       return;
     }
     const completionNote = window.prompt(
       "กรอกรายละเอียดผลการทำงานก่อนยืนยัน",
     );
-    if (!completionNote?.trim()) {
+    if (completionNote === null) return;
+    if (!completionNote.trim()) {
       window.alert("กรุณากรอกรายละเอียดผลการทำงาน");
       return;
     }
@@ -1952,16 +2034,45 @@ function Calendar({ plans, setPlans, emps, user }) {
     }
   };
   const exportCalendar = () => {
-    const rows = visiblePlans.map((plan) => ({
-      วันที่: plan.date,
-      ช่วงเวลา: plan.periods?.join(", ") || "-",
-      พนักงาน: emps.find((employee) => employee.id === plan.empId)?.name ?? "",
-      แผนงาน: plan.task,
-      ความสำคัญ: plan.priority,
-      สถานะ: plan.status,
-      ผู้อนุมัติ: plan.status === "Approved" ? plan.approvedBy : "",
-    }));
+    const sortedPlans = visiblePlans
+      .slice()
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    const rows = sortedPlans.map((plan) => {
+      const emp = emps.find((employee) => employee.id === plan.empId);
+      return {
+        วันที่: plan.date,
+        ช่วงเวลา: plan.periods?.join(", ") || "-",
+        รหัสพนักงาน: emp?.code || "-",
+        พนักงาน: emp?.name ?? "",
+        แผนก: emp?.dept || "-",
+        แผนงาน: plan.task,
+        ความสำคัญ: plan.priority,
+        สถานะ: plan.status,
+        ผู้อนุมัติ: plan.status === "Approved" ? (plan.approvedBy || "-") : "-",
+        สถานะงาน: plan.done ? "เสร็จสมบูรณ์" : "ยังไม่เสร็จ",
+        รายละเอียดผลการทำงาน: plan.completionNote || "-",
+        เวลาที่สำเร็จงาน: plan.completedAt
+          ? new Date(plan.completedAt).toLocaleString("th-TH")
+          : "-",
+        หมายเหตุ: plan.comment || "-",
+      };
+    });
     const sheet = XLSX.utils.json_to_sheet(rows);
+    sheet["!cols"] = [
+      { wch: 12 }, // วันที่
+      { wch: 12 }, // ช่วงเวลา
+      { wch: 14 }, // รหัสพนักงาน
+      { wch: 20 }, // พนักงาน
+      { wch: 15 }, // แผนก
+      { wch: 35 }, // แผนงาน
+      { wch: 12 }, // ความสำคัญ
+      { wch: 14 }, // สถานะ
+      { wch: 20 }, // ผู้อนุมัติ
+      { wch: 16 }, // สถานะงาน
+      { wch: 40 }, // รายละเอียดผลการทำงาน
+      { wch: 22 }, // เวลาที่สำเร็จงาน
+      { wch: 25 }, // หมายเหตุ
+    ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Team Calendar");
     XLSX.writeFile(workbook, `team-calendar-${monthKey}.xlsx`);
