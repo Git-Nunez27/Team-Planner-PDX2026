@@ -64,7 +64,13 @@ function NotificationBell({ user, notifications, setNotifications, setPage }) {
     markAsRead(n.id);
     setIsOpen(false);
     if (setPage) {
-      setPage("history");
+      if (n.action === "Resubmitted") {
+        setPage("approval");
+      } else if (n.action === "Replied") {
+        setPage("plan");
+      } else {
+        setPage("history");
+      }
     }
   };
 
@@ -128,6 +134,8 @@ function NotificationBell({ user, notifications, setNotifications, setPage }) {
                         ? "↩ Reply งาน"
                         : n.action === "Cancelled"
                         ? "❌ ยกเลิกงาน"
+                        : n.action === "Resubmitted"
+                        ? "📝 ส่งแผนแก้ไขใหม่"
                         : "✓ อนุมัติงาน"}
                     </span>
                     <span className="notif-time">{n.time}</span>
@@ -412,6 +420,9 @@ function App() {
               emps={emps}
               user={user}
               notify={notify}
+              history={history}
+              setHistory={setHistory}
+              setNotifications={setNotifications}
             />
           )}
           {page === "calendar" && (
@@ -420,6 +431,10 @@ function App() {
               setPlans={setPlans}
               emps={emps}
               user={user}
+              notify={notify}
+              history={history}
+              setHistory={setHistory}
+              setNotifications={setNotifications}
             />
           )}
           {page === "history" && <History history={history} plans={plans} user={user} />}
@@ -1512,6 +1527,11 @@ function Approval({
                     {p.date} · {p.periods?.join(", ") || "-"} · {p.task}
                   </div>
                   <small>Priority: {p.priority}</small>
+                  {p.comment && (
+                    <div className="replied-feedback-badge">
+                      💬 เคย Reply ว่า: "{p.comment}"
+                    </div>
+                  )}
                 </div>
                 <div className="actions">
                   <button
@@ -1564,7 +1584,116 @@ function Approval({
     </>
   );
 }
-function Plan({ plans, setPlans, emps, user, notify }) {
+function EditPlanModal({ plan, onClose, onSave }) {
+  const [f, setF] = useState({
+    date: plan.date || "",
+    task: plan.task || "",
+    priority: plan.priority || "กลาง",
+    periods: plan.periods || [],
+  });
+
+  const togglePeriod = (period) =>
+    setF((current) => ({
+      ...current,
+      periods: current.periods.includes(period)
+        ? current.periods.filter((item) => item !== period)
+        : [...current.periods, period],
+    }));
+
+  const handleSubmit = (e) => {
+    e?.preventDefault();
+    if (!f.task.trim()) return alert("กรุณากรอกแผนงาน");
+    if (!f.periods.length) return alert("กรุณาเลือกช่วงเวลา");
+    if (!f.date) return alert("กรุณาเลือกวันที่");
+    onSave({
+      ...plan,
+      date: f.date,
+      periods: f.periods,
+      priority: f.priority,
+      task: f.task.trim(),
+    });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>
+            ✏️ แก้ไขแผนงาน
+            {plan.status === "Replied" && (
+              <span className="status Replied" style={{ fontSize: "12px", marginLeft: "6px" }}>
+                รอแก้ไข
+              </span>
+            )}
+          </h3>
+          <button className="modal-close" onClick={onClose} title="ปิด">✕</button>
+        </div>
+        <div className="modal-body">
+          {plan.comment && (
+            <div className="modal-reply-box">
+              <strong>💬 ข้อความ/เหตุผลจากผู้บังคับบัญชา:</strong>
+              <p>{plan.comment}</p>
+            </div>
+          )}
+          <div className="form-grid">
+            <label>
+              วันที่
+              <input
+                type="date"
+                value={f.date}
+                onChange={(e) => setF({ ...f, date: e.target.value })}
+              />
+            </label>
+            <label>
+              ความสำคัญ
+              <select
+                value={f.priority}
+                onChange={(e) => setF({ ...f, priority: e.target.value })}
+              >
+                <option>สูง</option>
+                <option>กลาง</option>
+                <option>ต่ำ</option>
+              </select>
+            </label>
+          </div>
+          <fieldset className="period-options">
+            <legend>ช่วงเวลา</legend>
+            {["เช้า", "บ่าย"].map((period) => (
+              <label key={period}>
+                <input
+                  type="checkbox"
+                  checked={f.periods.includes(period)}
+                  onChange={() => togglePeriod(period)}
+                />
+                {period}
+              </label>
+            ))}
+          </fieldset>
+          <label>
+            แผนงาน
+            <textarea
+              value={f.task}
+              onChange={(e) => setF({ ...f, task: e.target.value })}
+              placeholder="รายละเอียดแผนงานที่ต้องการแก้ไข..."
+              rows={4}
+            />
+          </label>
+        </div>
+        <div className="modal-footer">
+          <button className="btn small" onClick={onClose}>
+            ยกเลิก
+          </button>
+          <button className="btn primary" onClick={handleSubmit}>
+            บันทึกและส่งขออนุมัติใหม่
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNotifications }) {
+  const [editingPlan, setEditingPlan] = useState(null);
   const todayStr = (() => {
     const d = new Date();
     return [
@@ -1663,6 +1792,71 @@ function Plan({ plans, setPlans, emps, user, notify }) {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Plans Report");
     XLSX.writeFile(workbook, `plans-report-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleSaveEditedPlan = (updatedPlan) => {
+    const autoApprove = isSelfApprover;
+    setPlans(
+      plans.map((item) =>
+        item.id === updatedPlan.id
+          ? {
+              ...item,
+              date: updatedPlan.date,
+              periods: updatedPlan.periods,
+              priority: updatedPlan.priority,
+              task: updatedPlan.task,
+              status: autoApprove ? "Approved" : "Pending",
+              approvedBy: autoApprove ? user.name : undefined,
+              lastEditedAt: new Date().toISOString(),
+            }
+          : item,
+      ),
+    );
+
+    if (setHistory) {
+      setHistory((prev) => [
+        {
+          id: Date.now(),
+          planId: updatedPlan.id,
+          empId: updatedPlan.empId,
+          action: "Resubmitted",
+          by: user.name,
+          time: new Date().toLocaleString("th-TH"),
+          comment: `แก้ไขแผนงานและส่งใหม่: ${updatedPlan.task}`,
+        },
+        ...(prev ?? []),
+      ]);
+    }
+
+    const supervisor =
+      emps.find((e) => e.id === user.managerId) ||
+      (user.role === "PM" ? emps.find((e) => e.role === "OM") : null);
+
+    if (supervisor && setNotifications) {
+      setNotifications((prev) => [
+        {
+          id: Date.now() + Math.random(),
+          targetEmpId: supervisor.id,
+          planId: updatedPlan.id,
+          taskName: updatedPlan.task,
+          action: "Resubmitted",
+          actionBy: user.name,
+          comment: "แก้ไขแผนงานและส่งขออนุมัติใหม่",
+          time: new Date().toLocaleString("th-TH"),
+          read: false,
+        },
+        ...(prev ?? []),
+      ]);
+    }
+
+    notify(
+      autoApprove
+        ? "บันทึกการแก้ไขเรียบร้อย (อนุมัติอัตโนมัติ)"
+        : user.role === "PM"
+        ? "บันทึกการแก้ไขแล้ว — รอ OM อนุมัติ"
+        : "บันทึกการแก้ไขแล้ว — รอ PM อนุมัติ",
+    );
+    setEditingPlan(null);
   };
   const managedEmployees = emps.filter(
     (employee) => employee.managerId === user.id,
@@ -1808,7 +2002,14 @@ function Plan({ plans, setPlans, emps, user, notify }) {
                   </td>
                   <td>{p.priority}</td>
                   <td>
-                    <span className={"status " + p.status}>{p.status}</span>
+                    <span className={"status " + p.status}>
+                      {p.status === "Replied" ? "↩ รอแก้ไข" : p.status}
+                    </span>
+                    {p.status === "Replied" && p.comment && (
+                      <div className="replied-feedback-badge">
+                        💬 <strong>ความเห็นหัวหน้า:</strong> {p.comment}
+                      </div>
+                    )}
                   </td>
                   <td>{p.status === "Approved" ? p.approvedBy : ""}</td>
                   {canCreatePlan &&
@@ -1826,18 +2027,29 @@ function Plan({ plans, setPlans, emps, user, notify }) {
                   {canCreatePlan && p.empId !== user.id && <td />}
                   {canCreatePlan && (
                     <td>
-                      {p.empId === user.id && (
-                        <button
-                          className="btn danger small"
-                          onClick={() => {
-                            if (!confirm(`ยืนยันลบงาน: ${p.task}?`)) return;
-                            setPlans(plans.filter((plan) => plan.id !== p.id));
-                            notify("ลบงานแล้ว");
-                          }}
-                        >
-                          ลบงาน
-                        </button>
-                      )}
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        {p.empId === user.id && (p.status === "Replied" || p.status === "Pending") && (
+                          <button
+                            className="btn small warning"
+                            onClick={() => setEditingPlan(p)}
+                            title="แก้ไขแผนงาน"
+                          >
+                            ✏️ แก้ไข
+                          </button>
+                        )}
+                        {p.empId === user.id && (
+                          <button
+                            className="btn danger small"
+                            onClick={() => {
+                              if (!confirm(`ยืนยันลบงาน: ${p.task}?`)) return;
+                              setPlans(plans.filter((plan) => plan.id !== p.id));
+                              notify("ลบงานแล้ว");
+                            }}
+                          >
+                            ลบงาน
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -1846,10 +2058,18 @@ function Plan({ plans, setPlans, emps, user, notify }) {
           </table>
         </div>
       </Card>
+      {editingPlan && (
+        <EditPlanModal
+          plan={editingPlan}
+          onClose={() => setEditingPlan(null)}
+          onSave={handleSaveEditedPlan}
+        />
+      )}
     </>
   );
 }
-function Calendar({ plans, setPlans, emps, user }) {
+function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, setNotifications }) {
+  const [editingPlan, setEditingPlan] = useState(null);
   const toggleDone = (planId) =>
     setPlans(
       plans.map((plan) =>
@@ -1883,14 +2103,90 @@ function Calendar({ plans, setPlans, emps, user }) {
       ),
     );
   };
+  const handleSaveEditedPlan = (updatedPlan) => {
+    const isSelfApprover = ["OM", "GM", "MD"].includes(user.role);
+    const autoApprove = isSelfApprover;
+    setPlans(
+      plans.map((item) =>
+        item.id === updatedPlan.id
+          ? {
+              ...item,
+              date: updatedPlan.date,
+              periods: updatedPlan.periods,
+              priority: updatedPlan.priority,
+              task: updatedPlan.task,
+              status: autoApprove ? "Approved" : "Pending",
+              approvedBy: autoApprove ? user.name : undefined,
+              lastEditedAt: new Date().toISOString(),
+            }
+          : item,
+      ),
+    );
+
+    if (setHistory) {
+      setHistory((prev) => [
+        {
+          id: Date.now(),
+          planId: updatedPlan.id,
+          empId: updatedPlan.empId,
+          action: "Resubmitted",
+          by: user.name,
+          time: new Date().toLocaleString("th-TH"),
+          comment: `แก้ไขแผนงานและส่งใหม่: ${updatedPlan.task}`,
+        },
+        ...(prev ?? []),
+      ]);
+    }
+
+    const supervisor =
+      emps.find((e) => e.id === user.managerId) ||
+      (user.role === "PM" ? emps.find((e) => e.role === "OM") : null);
+
+    if (supervisor && setNotifications) {
+      setNotifications((prev) => [
+        {
+          id: Date.now() + Math.random(),
+          targetEmpId: supervisor.id,
+          planId: updatedPlan.id,
+          taskName: updatedPlan.task,
+          action: "Resubmitted",
+          actionBy: user.name,
+          comment: "แก้ไขแผนงานและส่งขออนุมัติใหม่",
+          time: new Date().toLocaleString("th-TH"),
+          read: false,
+        },
+        ...(prev ?? []),
+      ]);
+    }
+
+    if (notify) {
+      notify(
+        autoApprove
+          ? "บันทึกการแก้ไขเรียบร้อย (อนุมัติอัตโนมัติ)"
+          : user.role === "PM"
+          ? "บันทึกการแก้ไขแล้ว — รอ OM อนุมัติ"
+          : "บันทึกการแก้ไขแล้ว — รอ PM อนุมัติ",
+      );
+    }
+    setEditingPlan(null);
+  };
   const viewPlanDetails = (plan) => {
     const employeeName = emps.find((employee) => employee.id === plan.empId)?.name;
     const completionDetails = plan.completionNote
       ? `\n\nรายละเอียดผลการทำงาน\n${plan.completionNote}`
       : "";
-    window.alert(
-      `รายละเอียดงาน\n\nงาน: ${plan.task}\nวันที่: ${plan.date}\nช่วงเวลา: ${plan.periods?.join(", ") || "-"}\nผู้วางแผน: ${employeeName ?? "-"}\nสถานะ: ${plan.status}${plan.approvedBy ? `\nผู้อนุมัติ: ${plan.approvedBy}` : ""}${completionDetails}`,
-    );
+    const supervisorFeedback = plan.comment
+      ? `\n\nข้อความจากหัวหน้า:\n${plan.comment}`
+      : "";
+    const info = `รายละเอียดงาน\n\nงาน: ${plan.task}\nวันที่: ${plan.date}\nช่วงเวลา: ${plan.periods?.join(", ") || "-"}\nผู้วางแผน: ${employeeName ?? "-"}\nสถานะ: ${plan.status === "Replied" ? "รอแก้ไข" : plan.status}${plan.approvedBy ? `\nผู้อนุมัติ: ${plan.approvedBy}` : ""}${supervisorFeedback}${completionDetails}`;
+    if (plan.status === "Replied" && plan.empId === user.id) {
+      if (window.confirm(`${info}\n\nต้องการแก้ไขแผนนี้เลยหรือไม่?`)) {
+        setEditingPlan(plan);
+        return;
+      }
+    } else {
+      window.alert(info);
+    }
   };
   const [employeeId, setEmployeeId] = useState(
     ["Admin", "MD", "GM", "OM"].includes(user.role) ? "all" : String(user.id),
@@ -2206,8 +2502,14 @@ function Calendar({ plans, setPlans, emps, user }) {
                                   (plan.done ? " checked" : "") +
                                   (plan.status === "Replied" ? " replied" : plan.status !== "Approved" ? " disabled" : "")
                                 }
-                                disabled={plan.status !== "Approved"}
-                                onClick={() => completePlan(plan)}
+                                disabled={plan.status !== "Approved" && plan.status !== "Replied"}
+                                onClick={() => {
+                                  if (plan.status === "Replied") {
+                                    setEditingPlan(plan);
+                                  } else {
+                                    completePlan(plan);
+                                  }
+                                }}
                               >
                                 <span className="check-box">
                                   {plan.done ? "✓" : ""}
@@ -2215,7 +2517,7 @@ function Calendar({ plans, setPlans, emps, user }) {
                                 {plan.status === "Approved"
                                   ? "อนุมัติแล้ว"
                                   : plan.status === "Replied"
-                                  ? "↩ รอแก้ไข"
+                                  ? "↩ แก้ไขแผน"
                                   : emps.find((e) => e.id === plan.empId)?.role === "PM"
                                   ? "รอ OM อนุมัติ"
                                   : "รอ PM อนุมัติ"}
@@ -2246,6 +2548,13 @@ function Calendar({ plans, setPlans, emps, user }) {
           </div>
         </div>
       </Card>
+      {editingPlan && (
+        <EditPlanModal
+          plan={editingPlan}
+          onClose={() => setEditingPlan(null)}
+          onSave={handleSaveEditedPlan}
+        />
+      )}
     </>
   );
 }
@@ -2287,6 +2596,8 @@ function History({ history, plans, user }) {
                     ? "Replied"
                     : h.action === "Cancelled"
                     ? "Cancelled"
+                    : h.action === "Resubmitted"
+                    ? "Pending"
                     : "";
                 const actionText =
                   h.action === "Approved"
@@ -2295,6 +2606,8 @@ function History({ history, plans, user }) {
                     ? "↩ Reply (แก้ไข)"
                     : h.action === "Cancelled"
                     ? "❌ ยกเลิก"
+                    : h.action === "Resubmitted"
+                    ? "📝 แก้ไขและส่งใหม่"
                     : h.action;
 
                 return (
