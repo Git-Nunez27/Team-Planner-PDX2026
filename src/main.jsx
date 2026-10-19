@@ -118,45 +118,45 @@ function NotificationBell({ user, notifications, setNotifications, setPage }) {
               </div>
             </div>
 
-          <div className="notif-list">
-            {userNotifs.length === 0 ? (
-              <div className="notif-empty">ไม่มีการแจ้งเตือน</div>
-            ) : (
-              userNotifs.map((n) => (
-                <div
-                  key={n.id}
-                  className={`notif-item ${!n.read ? "unread" : ""}`}
-                  onClick={() => handleItemClick(n)}
-                >
-                  <div className="notif-item-header">
-                    <span className={`notif-tag action-${n.action?.toLowerCase()}`}>
-                      {n.action === "Replied"
-                        ? "↩ Reply งาน"
-                        : n.action === "Cancelled"
-                        ? "❌ ยกเลิกงาน"
-                        : n.action === "Resubmitted"
-                        ? "📝 ส่งแผนแก้ไขใหม่"
-                        : "✓ อนุมัติงาน"}
-                    </span>
-                    <span className="notif-time">{n.time}</span>
-                  </div>
-                  <div className="notif-task">
-                    <strong>งาน:</strong> {n.taskName}
-                  </div>
-                  <div className="notif-by">
-                    <strong>ผู้บังคับบัญชา:</strong> {n.actionBy}
-                  </div>
-                  {n.comment && (
-                    <div className="notif-comment">
-                      "{n.comment}"
+            <div className="notif-list">
+              {userNotifs.length === 0 ? (
+                <div className="notif-empty">ไม่มีการแจ้งเตือน</div>
+              ) : (
+                userNotifs.map((n) => (
+                  <div
+                    key={n.id}
+                    className={`notif-item ${!n.read ? "unread" : ""}`}
+                    onClick={() => handleItemClick(n)}
+                  >
+                    <div className="notif-item-header">
+                      <span className={`notif-tag action-${n.action?.toLowerCase()}`}>
+                        {n.action === "Replied"
+                          ? "↩ Reply งาน"
+                          : n.action === "Cancelled"
+                            ? "❌ ยกเลิกงาน"
+                            : n.action === "Resubmitted"
+                              ? "📝 ส่งแผนแก้ไขใหม่"
+                              : "✓ อนุมัติงาน"}
+                      </span>
+                      <span className="notif-time">{n.time}</span>
                     </div>
-                  )}
-                </div>
-              ))
-            )}
+                    <div className="notif-task">
+                      <strong>งาน:</strong> {n.taskName}
+                    </div>
+                    <div className="notif-by">
+                      <strong>ผู้บังคับบัญชา:</strong> {n.actionBy}
+                    </div>
+                    {n.comment && (
+                      <div className="notif-comment">
+                        "{n.comment}"
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        </div>
-      </>
+        </>
       )}
     </div>
   );
@@ -286,8 +286,8 @@ function App() {
           n.action === "Replied"
             ? "Reply ตอบกลับ"
             : n.action === "Cancelled"
-            ? "ยกเลิก"
-            : "อนุมัติ";
+              ? "ยกเลิก"
+              : "อนุมัติ";
         notify(`🔔 ผู้บังคับบัญชา (${n.actionBy}) ได้${actionLabel}งาน: "${n.taskName}"`);
       });
     }
@@ -647,18 +647,18 @@ function PersonalDashboard({ user, plans, history }) {
           <h3 className="db-section-title">🍩 สถานะแผนงานของฉัน</h3>
           <DonutChart data={donutData} label="แผนงาน" />
           <div className="db-my-rate-row">
-            <div className="db-completion-ring" style={{marginTop:16}}>
-              <svg viewBox="0 0 36 36" style={{width:72,height:72}}>
-                <circle cx="18" cy="18" r="14" fill="none" stroke="#e2e8f0" strokeWidth="3"/>
+            <div className="db-completion-ring" style={{ marginTop: 16 }}>
+              <svg viewBox="0 0 36 36" style={{ width: 72, height: 72 }}>
+                <circle cx="18" cy="18" r="14" fill="none" stroke="#e2e8f0" strokeWidth="3" />
                 <circle cx="18" cy="18" r="14" fill="none"
                   stroke={myRate >= 80 ? "#15803d" : myRate >= 50 ? "#b54708" : "#d92d20"}
                   strokeWidth="3"
                   strokeDasharray={`${myTotal ? (myApproved / myTotal) * 87.96 : 0} 87.96`}
-                  strokeDashoffset="22" strokeLinecap="round"/>
+                  strokeDashoffset="22" strokeLinecap="round" />
                 <text x="18" y="20" textAnchor="middle" fontSize="6" fontWeight="700" fill="#172033">{myRate}%</text>
               </svg>
               <div>
-                <div style={{fontWeight:700}}>อัตราอนุมัติ</div>
+                <div style={{ fontWeight: 700 }}>อัตราอนุมัติ</div>
                 <div className="muted">{myApproved} / {myTotal} แผน</div>
               </div>
             </div>
@@ -681,7 +681,7 @@ function PersonalDashboard({ user, plans, history }) {
             ))}
           </div>
 
-          <h3 className="db-section-title" style={{marginTop:20}}>🎯 ระดับความสำคัญ</h3>
+          <h3 className="db-section-title" style={{ marginTop: 20 }}>🎯 ระดับความสำคัญ</h3>
           <div className="db-priority-list">
             {priorityStats.map((p) => (
               <div className="db-priority-item" key={p.label}>
@@ -704,14 +704,14 @@ function PersonalDashboard({ user, plans, history }) {
         <div className="card">
           <h3 className="db-section-title">📋 แผนงานล่าสุดของฉัน</h3>
           <div className="db-my-plans">
-            {myPlans.slice().sort((a,b) => b.date?.localeCompare(a.date)).slice(0, 6).map((p) => (
+            {myPlans.slice().sort((a, b) => b.date?.localeCompare(a.date)).slice(0, 6).map((p) => (
               <div className="db-my-plan-item" key={p.id}>
                 <div className="db-my-plan-date">{p.date}</div>
                 <div className="db-my-plan-task">{p.task}</div>
                 <div className="db-my-plan-meta">
                   <span className={`status ${p.status}`}>{p.status}</span>
-                  <span className={`key-dot ${p.priority === "สูง" ? "high" : p.priority === "กลาง" ? "medium" : "low"}`} style={{display:"inline-block"}} />
-                  <span className="muted" style={{fontSize:11}}>{p.priority}</span>
+                  <span className={`key-dot ${p.priority === "สูง" ? "high" : p.priority === "กลาง" ? "medium" : "low"}`} style={{ display: "inline-block" }} />
+                  <span className="muted" style={{ fontSize: 11 }}>{p.priority}</span>
                   {p.done && <span className="db-done-badge">✓ เสร็จ</span>}
                 </div>
               </div>
@@ -756,10 +756,10 @@ function Dashboard({ emps, plans, pending: initialPending, history, user }) {
   const isPM = user.role === "PM";
   const targetEmps = isPM
     ? emps.filter(
-        (e) =>
-          e.id === user.id ||
-          (e.role === "Supervisor" && e.managerId === user.id),
-      )
+      (e) =>
+        e.id === user.id ||
+        (e.role === "Supervisor" && e.managerId === user.id),
+    )
     : emps;
   const targetEmpIds = targetEmps.map((e) => e.id);
   const basePlans = isPM
@@ -810,10 +810,10 @@ function Dashboard({ emps, plans, pending: initialPending, history, user }) {
         done: empPlans.filter((p) => p.done).length,
         rate: empPlans.length
           ? Math.round(
-              (empPlans.filter((p) => p.status === "Approved").length /
-                empPlans.length) *
-                100,
-            )
+            (empPlans.filter((p) => p.status === "Approved").length /
+              empPlans.length) *
+            100,
+          )
           : 0,
       };
     })
@@ -1004,19 +1004,19 @@ function Dashboard({ emps, plans, pending: initialPending, history, user }) {
             ))}
           </div>
           <div className="db-completion-section">
-            <h3 className="db-section-title" style={{marginTop:"18px"}}>⚡ อัตราความสำเร็จ</h3>
+            <h3 className="db-section-title" style={{ marginTop: "18px" }}>⚡ อัตราความสำเร็จ</h3>
             <div className="db-completion-ring">
-              <svg viewBox="0 0 36 36" style={{width:80,height:80}}>
-                <circle cx="18" cy="18" r="14" fill="none" stroke="#e2e8f0" strokeWidth="3"/>
+              <svg viewBox="0 0 36 36" style={{ width: 80, height: 80 }}>
+                <circle cx="18" cy="18" r="14" fill="none" stroke="#e2e8f0" strokeWidth="3" />
                 <circle cx="18" cy="18" r="14" fill="none" stroke="#15803d" strokeWidth="3"
-                  strokeDasharray={`${totalPlans ? (approved/totalPlans)*87.96 : 0} 87.96`}
-                  strokeDashoffset="22" strokeLinecap="round"/>
+                  strokeDasharray={`${totalPlans ? (approved / totalPlans) * 87.96 : 0} 87.96`}
+                  strokeDashoffset="22" strokeLinecap="round" />
                 <text x="18" y="20" textAnchor="middle" fontSize="6" fontWeight="700" fill="#172033">
-                  {totalPlans ? Math.round(approved/totalPlans*100) : 0}%
+                  {totalPlans ? Math.round(approved / totalPlans * 100) : 0}%
                 </text>
               </svg>
               <div>
-                <div style={{fontWeight:700,fontSize:15}}>อนุมัติแล้ว</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>อนุมัติแล้ว</div>
                 <div className="muted">{approved} / {totalPlans} แผน</div>
               </div>
             </div>
@@ -1031,7 +1031,7 @@ function Dashboard({ emps, plans, pending: initialPending, history, user }) {
           <div className="db-top-list">
             {topPerformers.map((p, i) => (
               <div className="db-top-item" key={p.name}>
-                <div className="db-top-rank">{["🥇","🥈","🥉","4️⃣","5️⃣"][i]}</div>
+                <div className="db-top-rank">{["🥇", "🥈", "🥉", "4️⃣", "5️⃣"][i]}</div>
                 <div className="db-top-info">
                   <div className="db-top-name">{p.name}</div>
                   <div className="muted">{p.dept}</div>
@@ -1040,7 +1040,7 @@ function Dashboard({ emps, plans, pending: initialPending, history, user }) {
                   <span className="db-top-stat">{p.approved} อนุมัติ</span>
                   <span className="db-top-stat done">{p.done} เสร็จ</span>
                 </div>
-                <div className="db-top-rate" style={{color: p.rate >= 80 ? "#15803d" : p.rate >= 50 ? "#b54708" : "#d92d20"}}>
+                <div className="db-top-rate" style={{ color: p.rate >= 80 ? "#15803d" : p.rate >= 50 ? "#b54708" : "#d92d20" }}>
                   {p.rate}%
                 </div>
               </div>
@@ -1800,15 +1800,15 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
       plans.map((item) =>
         item.id === updatedPlan.id
           ? {
-              ...item,
-              date: updatedPlan.date,
-              periods: updatedPlan.periods,
-              priority: updatedPlan.priority,
-              task: updatedPlan.task,
-              status: autoApprove ? "Approved" : "Pending",
-              approvedBy: autoApprove ? user.name : undefined,
-              lastEditedAt: new Date().toISOString(),
-            }
+            ...item,
+            date: updatedPlan.date,
+            periods: updatedPlan.periods,
+            priority: updatedPlan.priority,
+            task: updatedPlan.task,
+            status: autoApprove ? "Approved" : "Pending",
+            approvedBy: autoApprove ? user.name : undefined,
+            lastEditedAt: new Date().toISOString(),
+          }
           : item,
       ),
     );
@@ -1853,8 +1853,8 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
       autoApprove
         ? "บันทึกการแก้ไขเรียบร้อย (อนุมัติอัตโนมัติ)"
         : user.role === "PM"
-        ? "บันทึกการแก้ไขแล้ว — รอ OM อนุมัติ"
-        : "บันทึกการแก้ไขแล้ว — รอ PM อนุมัติ",
+          ? "บันทึกการแก้ไขแล้ว — รอ OM อนุมัติ"
+          : "บันทึกการแก้ไขแล้ว — รอ PM อนุมัติ",
     );
     setEditingPlan(null);
   };
@@ -1945,8 +1945,8 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
                 autoApprove
                   ? "บันทึกแผนงานเรียบร้อย (อนุมัติอัตโนมัติ)"
                   : user.role === "PM"
-                  ? "ส่งแผนแล้ว — รอ OM อนุมัติ"
-                  : "ส่งแผนแล้ว — รอ PM อนุมัติ",
+                    ? "ส่งแผนแล้ว — รอ OM อนุมัติ"
+                    : "ส่งแผนแล้ว — รอ PM อนุมัติ",
               );
             }}
           >
@@ -2012,19 +2012,18 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
                     )}
                   </td>
                   <td>{p.status === "Approved" ? p.approvedBy : ""}</td>
-                  {canCreatePlan &&
-                    p.empId === user.id &&
-                    p.status === "Approved" && (
-                      <td>
+                  {canCreatePlan && (
+                    <td>
+                      {p.empId === user.id && (
                         <button
                           className={"btn small " + (p.done ? "success" : "")}
                           onClick={() => completePlan(p)}
                         >
                           {p.done ? "✓ เสร็จแล้ว" : "○ ยังไม่เสร็จ"}
                         </button>
-                      </td>
-                    )}
-                  {canCreatePlan && p.empId !== user.id && <td />}
+                      )}
+                    </td>
+                  )}
                   {canCreatePlan && (
                     <td>
                       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
@@ -2079,7 +2078,12 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
   const completePlan = (plan) => {
     if (plan.done) {
       if (!window.confirm("ยืนยันยกเลิกสถานะทำเสร็จงานนี้หรือไม่?")) return;
-      toggleDone(plan.id);
+      setPlans(
+        plans.map((item) =>
+          item.id === plan.id ? { ...item, done: false } : item,
+        ),
+      );
+      if (notify) notify("ยกเลิกการทำเสร็จ");
       return;
     }
     const completionNote = window.prompt(
@@ -2102,6 +2106,7 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
           : item,
       ),
     );
+    if (notify) notify("ทำเสร็จแล้ว");
   };
   const handleSaveEditedPlan = (updatedPlan) => {
     const isSelfApprover = ["OM", "GM", "MD"].includes(user.role);
@@ -2110,15 +2115,15 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
       plans.map((item) =>
         item.id === updatedPlan.id
           ? {
-              ...item,
-              date: updatedPlan.date,
-              periods: updatedPlan.periods,
-              priority: updatedPlan.priority,
-              task: updatedPlan.task,
-              status: autoApprove ? "Approved" : "Pending",
-              approvedBy: autoApprove ? user.name : undefined,
-              lastEditedAt: new Date().toISOString(),
-            }
+            ...item,
+            date: updatedPlan.date,
+            periods: updatedPlan.periods,
+            priority: updatedPlan.priority,
+            task: updatedPlan.task,
+            status: autoApprove ? "Approved" : "Pending",
+            approvedBy: autoApprove ? user.name : undefined,
+            lastEditedAt: new Date().toISOString(),
+          }
           : item,
       ),
     );
@@ -2164,8 +2169,8 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
         autoApprove
           ? "บันทึกการแก้ไขเรียบร้อย (อนุมัติอัตโนมัติ)"
           : user.role === "PM"
-          ? "บันทึกการแก้ไขแล้ว — รอ OM อนุมัติ"
-          : "บันทึกการแก้ไขแล้ว — รอ PM อนุมัติ",
+            ? "บันทึกการแก้ไขแล้ว — รอ OM อนุมัติ"
+            : "บันทึกการแก้ไขแล้ว — รอ PM อนุมัติ",
       );
     }
     setEditingPlan(null);
@@ -2493,36 +2498,39 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
                           }
                           key={plan.id}
                         >
-                          {["PM", "Supervisor"].includes(user.role) &&
-                            plan.empId === user.id && (
-                              <button
-                                type="button"
-                                className={
-                                  "calendar-event-done" +
-                                  (plan.done ? " checked" : "") +
-                                  (plan.status === "Replied" ? " replied" : plan.status !== "Approved" ? " disabled" : "")
+                          {plan.empId === user.id && (
+                            <button
+                              type="button"
+                              className={
+                                "calendar-event-done" +
+                                (plan.done ? " checked" : "") +
+                                (plan.status === "Replied" ? " replied" : "")
+                              }
+                              onClick={() => {
+                                if (plan.status === "Replied") {
+                                  setEditingPlan(plan);
+                                } else {
+                                  completePlan(plan);
                                 }
-                                disabled={plan.status !== "Approved" && plan.status !== "Replied"}
-                                onClick={() => {
-                                  if (plan.status === "Replied") {
-                                    setEditingPlan(plan);
-                                  } else {
-                                    completePlan(plan);
-                                  }
-                                }}
-                              >
-                                <span className="check-box">
-                                  {plan.done ? "✓" : ""}
-                                </span>
-                                {plan.status === "Approved"
-                                  ? "อนุมัติแล้ว"
+                              }}
+                              title={
+                                plan.done
+                                  ? "คลิกเพื่อยกเลิกสถานะทำเสร็จ"
                                   : plan.status === "Replied"
+                                    ? "คลิกเพื่อแก้ไขแผน"
+                                    : "คลิกเพื่อสำเร็จงานและใส่รายละเอียด"
+                              }
+                            >
+                              <span className="check-box">
+                                {plan.done ? "✓" : ""}
+                              </span>
+                              {plan.done
+                                ? "ทำเสร็จแล้ว"
+                                : plan.status === "Replied"
                                   ? "↩ แก้ไขแผน"
-                                  : emps.find((e) => e.id === plan.empId)?.role === "PM"
-                                  ? "รอ OM อนุมัติ"
-                                  : "รอ PM อนุมัติ"}
-                              </button>
-                            )}
+                                  : "ทำเสร็จแล้ว"}
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="calendar-event-note"
@@ -2593,22 +2601,22 @@ function History({ history, plans, user }) {
                   h.action === "Approved"
                     ? "Approved"
                     : h.action === "Replied"
-                    ? "Replied"
-                    : h.action === "Cancelled"
-                    ? "Cancelled"
-                    : h.action === "Resubmitted"
-                    ? "Pending"
-                    : "";
+                      ? "Replied"
+                      : h.action === "Cancelled"
+                        ? "Cancelled"
+                        : h.action === "Resubmitted"
+                          ? "Pending"
+                          : "";
                 const actionText =
                   h.action === "Approved"
                     ? "✓ อนุมัติแล้ว"
                     : h.action === "Replied"
-                    ? "↩ Reply (แก้ไข)"
-                    : h.action === "Cancelled"
-                    ? "❌ ยกเลิก"
-                    : h.action === "Resubmitted"
-                    ? "📝 แก้ไขและส่งใหม่"
-                    : h.action;
+                      ? "↩ Reply (แก้ไข)"
+                      : h.action === "Cancelled"
+                        ? "❌ ยกเลิก"
+                        : h.action === "Resubmitted"
+                          ? "📝 แก้ไขและส่งใหม่"
+                          : h.action;
 
                 return (
                   <tr key={h.id}>
