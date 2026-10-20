@@ -208,6 +208,8 @@ function App() {
         });
         const plans = (data.data.plans ?? []).map((plan) => ({
           ...plan,
+          status: plan.status === "Pending" ? "Approved" : plan.status,
+          approvedBy: plan.approvedBy || (plan.status === "Pending" ? "อนุมัติอัตโนมัติ" : undefined),
           priority: priorityLabels[plan.priority] ?? plan.priority,
         }));
         const incoming = JSON.stringify({
@@ -613,7 +615,7 @@ function PersonalDashboard({ user, plans, history }) {
   const kpiCards = [
     { label: "แผนทั้งหมด", value: myTotal, icon: "📝", color: "#1769aa", sub: "ของฉัน" },
     { label: "อนุมัติแล้ว", value: myApproved, icon: "✅", color: "#15803d", sub: myTotal ? `${myRate}% ของแผน` : "0%" },
-    { label: "รออนุมัติ", value: myPending, icon: "⏳", color: "#d97706", sub: "รอผู้บังคับบัญชา" },
+    { label: "รออนุมัติ", value: myPending, icon: "⏳", color: "#d97706", sub: myPending > 0 ? "รอผู้บังคับบัญชา" : "ไม่มีงานค้างรอ" },
     { label: "เสร็จสมบูรณ์", value: myDone, icon: "🏆", color: "#0891b2", sub: "mark done แล้ว" },
   ];
 
@@ -1684,7 +1686,7 @@ function EditPlanModal({ plan, onClose, onSave }) {
             ยกเลิก
           </button>
           <button className="btn primary" onClick={handleSubmit}>
-            บันทึกและส่งขออนุมัติใหม่
+            บันทึกการแก้ไข
           </button>
         </div>
       </div>
@@ -1805,8 +1807,8 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
             periods: updatedPlan.periods,
             priority: updatedPlan.priority,
             task: updatedPlan.task,
-            status: autoApprove ? "Approved" : "Pending",
-            approvedBy: autoApprove ? user.name : undefined,
+            status: "Approved",
+            approvedBy: item.approvedBy || user.name,
             lastEditedAt: new Date().toISOString(),
           }
           : item,
@@ -1822,47 +1824,25 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
           action: "Resubmitted",
           by: user.name,
           time: new Date().toLocaleString("th-TH"),
-          comment: `แก้ไขแผนงานและส่งใหม่: ${updatedPlan.task}`,
+          comment: `แก้ไขแผนงาน: ${updatedPlan.task}`,
         },
         ...(prev ?? []),
       ]);
     }
 
-    const supervisor =
-      emps.find((e) => e.id === user.managerId) ||
-      (user.role === "PM" ? emps.find((e) => e.role === "OM") : null);
-
-    if (supervisor && setNotifications) {
-      setNotifications((prev) => [
-        {
-          id: Date.now() + Math.random(),
-          targetEmpId: supervisor.id,
-          planId: updatedPlan.id,
-          taskName: updatedPlan.task,
-          action: "Resubmitted",
-          actionBy: user.name,
-          comment: "แก้ไขแผนงานและส่งขออนุมัติใหม่",
-          time: new Date().toLocaleString("th-TH"),
-          read: false,
-        },
-        ...(prev ?? []),
-      ]);
-    }
-
-    notify(
-      autoApprove
-        ? "บันทึกการแก้ไขเรียบร้อย (อนุมัติอัตโนมัติ)"
-        : user.role === "PM"
-          ? "บันทึกการแก้ไขแล้ว — รอ OM อนุมัติ"
-          : "บันทึกการแก้ไขแล้ว — รอ PM อนุมัติ",
-    );
+    notify("บันทึกการแก้ไขเรียบร้อย");
     setEditingPlan(null);
   };
   const managedEmployees = emps.filter(
     (employee) => employee.managerId === user.id,
   );
   const managedIds = managedEmployees.map((employee) => employee.id);
-  const isSelfApprover = ["OM", "GM", "MD"].includes(user.role);
+  const canComplete = (p) => {
+    if (p.empId === user.id) return true;
+    if (managedIds.includes(p.empId)) return true;
+    if (["Admin", "MD", "GM", "OM", "PM"].includes(user.role)) return true;
+    return false;
+  };
   const canCreatePlan = ["PM", "Supervisor", "OM", "GM", "MD", "Admin"].includes(user.role);
   // Admin and self-approvers see all plans; PM sees own + team; Supervisor sees own only
   let rows =
@@ -1929,28 +1909,21 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
             onClick={() => {
               if (!f.task) return notify("กรุณากรอกแผนงาน");
               if (!f.periods.length) return notify("กรุณาเลือกช่วงเวลา");
-              const autoApprove = isSelfApprover;
               setPlans([
                 ...plans,
                 {
                   id: Date.now(),
                   empId: user.id,
                   ...f,
-                  status: autoApprove ? "Approved" : "Pending",
-                  approvedBy: autoApprove ? user.name : undefined,
+                  status: "Approved",
+                  approvedBy: user.name,
                 },
               ]);
               setF({ ...f, task: "", periods: [] });
-              notify(
-                autoApprove
-                  ? "บันทึกแผนงานเรียบร้อย (อนุมัติอัตโนมัติ)"
-                  : user.role === "PM"
-                    ? "ส่งแผนแล้ว — รอ OM อนุมัติ"
-                    : "ส่งแผนแล้ว — รอ PM อนุมัติ",
-              );
+              notify("บันทึกแผนงานเรียบร้อย");
             }}
           >
-            {isSelfApprover ? "บันทึกแผนงาน" : "ส่งแผนเพื่ออนุมัติ"}
+            บันทึกแผนงาน
           </button>
         </Card>
       )}
@@ -2014,7 +1987,7 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
                   <td>{p.status === "Approved" ? p.approvedBy : ""}</td>
                   {canCreatePlan && (
                     <td>
-                      {p.empId === user.id && (
+                      {canComplete(p) && (
                         <button
                           className={"btn small " + (p.done ? "success" : "")}
                           onClick={() => completePlan(p)}
@@ -2109,8 +2082,6 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
     if (notify) notify("ทำเสร็จแล้ว");
   };
   const handleSaveEditedPlan = (updatedPlan) => {
-    const isSelfApprover = ["OM", "GM", "MD"].includes(user.role);
-    const autoApprove = isSelfApprover;
     setPlans(
       plans.map((item) =>
         item.id === updatedPlan.id
@@ -2120,8 +2091,8 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
             periods: updatedPlan.periods,
             priority: updatedPlan.priority,
             task: updatedPlan.task,
-            status: autoApprove ? "Approved" : "Pending",
-            approvedBy: autoApprove ? user.name : undefined,
+            status: "Approved",
+            approvedBy: item.approvedBy || user.name,
             lastEditedAt: new Date().toISOString(),
           }
           : item,
@@ -2137,41 +2108,14 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
           action: "Resubmitted",
           by: user.name,
           time: new Date().toLocaleString("th-TH"),
-          comment: `แก้ไขแผนงานและส่งใหม่: ${updatedPlan.task}`,
-        },
-        ...(prev ?? []),
-      ]);
-    }
-
-    const supervisor =
-      emps.find((e) => e.id === user.managerId) ||
-      (user.role === "PM" ? emps.find((e) => e.role === "OM") : null);
-
-    if (supervisor && setNotifications) {
-      setNotifications((prev) => [
-        {
-          id: Date.now() + Math.random(),
-          targetEmpId: supervisor.id,
-          planId: updatedPlan.id,
-          taskName: updatedPlan.task,
-          action: "Resubmitted",
-          actionBy: user.name,
-          comment: "แก้ไขแผนงานและส่งขออนุมัติใหม่",
-          time: new Date().toLocaleString("th-TH"),
-          read: false,
+          comment: `แก้ไขแผนงาน: ${updatedPlan.task}`,
         },
         ...(prev ?? []),
       ]);
     }
 
     if (notify) {
-      notify(
-        autoApprove
-          ? "บันทึกการแก้ไขเรียบร้อย (อนุมัติอัตโนมัติ)"
-          : user.role === "PM"
-            ? "บันทึกการแก้ไขแล้ว — รอ OM อนุมัติ"
-            : "บันทึกการแก้ไขแล้ว — รอ PM อนุมัติ",
-      );
+      notify("บันทึกการแก้ไขเรียบร้อย");
     }
     setEditingPlan(null);
   };
@@ -2284,6 +2228,12 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
           (employee.id === user.id || employee.managerId === user.id),
       );
   const teamIds = calendarEmployees.map((employee) => employee.id);
+  const canComplete = (plan) => {
+    if (plan.empId === user.id) return true;
+    if (teamIds.includes(plan.empId)) return true;
+    if (["Admin", "MD", "GM", "OM", "PM"].includes(user.role)) return true;
+    return false;
+  };
   const visiblePlans = plans.filter(
     (plan) =>
       plan.status !== "Cancelled" &&
@@ -2498,7 +2448,7 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
                           }
                           key={plan.id}
                         >
-                          {plan.empId === user.id && (
+                          {canComplete(plan) && (
                             <button
                               type="button"
                               className={

@@ -1,4 +1,4 @@
-﻿export const employees = [
+export const employees = [
   {id:7,code:'GM001',name:'วรรณา ศรีสุข',role:'GM',dept:'Executive',active:true,password:'gm1234'},
   {id:1,code:'EMP001',name:'สมชาย ใจดี',role:'Supervisor',dept:'Operations',active:true,managerId:3,password:'1234'},
   {id:2,code:'EMP002',name:'วิชัย พรหมดี',role:'Supervisor',dept:'Operations',active:true,managerId:3,password:'1234'},
@@ -9,8 +9,8 @@
 ]
 export const plans = [
   {id:1,empId:1,date:'2026-09-03',task:'ตรวจสอบยอดขายประจำวัน',priority:'High',status:'Approved',approvedBy:'กิตติ รุ่งเรือง'},
-  {id:2,empId:2,date:'2026-09-03',task:'จัดทำรายงานสต๊อก',priority:'Normal',status:'Pending'},
-  {id:3,empId:4,date:'2026-09-03',task:'ประสานงานสาขา',priority:'Normal',status:'Pending'},
+  {id:2,empId:2,date:'2026-09-03',task:'จัดทำรายงานสต๊อก',priority:'Normal',status:'Approved',approvedBy:'อนุมัติอัตโนมัติ'},
+  {id:3,empId:4,date:'2026-09-03',task:'ประสานงานสาขา',priority:'Normal',status:'Approved',approvedBy:'อนุมัติอัตโนมัติ'},
   {id:4,empId:5,date:'2026-09-04',task:'ติดตามเอกสาร',priority:'Low',status:'Approved',approvedBy:'กิตติ รุ่งเรือง'},
   {id:5,empId:1,date:'2026-09-04',task:'สรุปผลการดำเนินงานประจำสัปดาห์',priority:'High',status:'Approved',approvedBy:'กิตติ รุ่งเรือง'},
   {id:6,empId:1,date:'2026-09-05',task:'ตรวจนับและปรับปรุงข้อมูลสต๊อกสินค้า',priority:'Normal',status:'Approved',approvedBy:'กิตติ รุ่งเรือง'},
