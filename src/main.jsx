@@ -208,8 +208,6 @@ function App() {
         });
         const plans = (data.data.plans ?? []).map((plan) => ({
           ...plan,
-          status: plan.status === "Pending" ? "Approved" : plan.status,
-          approvedBy: plan.approvedBy || (plan.status === "Pending" ? "อนุมัติอัตโนมัติ" : undefined),
           priority: priorityLabels[plan.priority] ?? plan.priority,
         }));
         const incoming = JSON.stringify({
@@ -615,7 +613,7 @@ function PersonalDashboard({ user, plans, history }) {
   const kpiCards = [
     { label: "แผนทั้งหมด", value: myTotal, icon: "📝", color: "#1769aa", sub: "ของฉัน" },
     { label: "อนุมัติแล้ว", value: myApproved, icon: "✅", color: "#15803d", sub: myTotal ? `${myRate}% ของแผน` : "0%" },
-    { label: "รออนุมัติ", value: myPending, icon: "⏳", color: "#d97706", sub: myPending > 0 ? "รอผู้บังคับบัญชา" : "ไม่มีงานค้างรอ" },
+    { label: "รออนุมัติ", value: myPending, icon: "⏳", color: "#d97706", sub: "รอผู้บังคับบัญชา" },
     { label: "เสร็จสมบูรณ์", value: myDone, icon: "🏆", color: "#0891b2", sub: "mark done แล้ว" },
   ];
 
@@ -1686,7 +1684,7 @@ function EditPlanModal({ plan, onClose, onSave }) {
             ยกเลิก
           </button>
           <button className="btn primary" onClick={handleSubmit}>
-            บันทึกการแก้ไข
+            บันทึกและส่งขออนุมัติใหม่
           </button>
         </div>
       </div>
@@ -1796,6 +1794,7 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
     XLSX.writeFile(workbook, `plans-report-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  const isSelfApprover = ["OM", "GM", "MD"].includes(user.role);
   const handleSaveEditedPlan = (updatedPlan) => {
     const autoApprove = isSelfApprover;
     setPlans(
@@ -1807,8 +1806,8 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
             periods: updatedPlan.periods,
             priority: updatedPlan.priority,
             task: updatedPlan.task,
-            status: "Approved",
-            approvedBy: item.approvedBy || user.name,
+            status: autoApprove ? "Approved" : "Pending",
+            approvedBy: autoApprove ? user.name : undefined,
             lastEditedAt: new Date().toISOString(),
           }
           : item,
@@ -1824,13 +1823,40 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
           action: "Resubmitted",
           by: user.name,
           time: new Date().toLocaleString("th-TH"),
-          comment: `แก้ไขแผนงาน: ${updatedPlan.task}`,
+          comment: `แก้ไขแผนงานและส่งใหม่: ${updatedPlan.task}`,
         },
         ...(prev ?? []),
       ]);
     }
 
-    notify("บันทึกการแก้ไขเรียบร้อย");
+    const supervisor =
+      emps.find((e) => e.id === user.managerId) ||
+      (user.role === "PM" ? emps.find((e) => e.role === "OM") : null);
+
+    if (supervisor && setNotifications) {
+      setNotifications((prev) => [
+        {
+          id: Date.now() + Math.random(),
+          targetEmpId: supervisor.id,
+          planId: updatedPlan.id,
+          taskName: updatedPlan.task,
+          action: "Resubmitted",
+          actionBy: user.name,
+          comment: "แก้ไขแผนงานและส่งขออนุมัติใหม่",
+          time: new Date().toLocaleString("th-TH"),
+          read: false,
+        },
+        ...(prev ?? []),
+      ]);
+    }
+
+    notify(
+      autoApprove
+        ? "บันทึกการแก้ไขเรียบร้อย (อนุมัติอัตโนมัติ)"
+        : user.role === "PM"
+          ? "บันทึกการแก้ไขแล้ว — รอ OM อนุมัติ"
+          : "บันทึกการแก้ไขแล้ว — รอ PM อนุมัติ",
+    );
     setEditingPlan(null);
   };
   const managedEmployees = emps.filter(
@@ -1909,21 +1935,28 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
             onClick={() => {
               if (!f.task) return notify("กรุณากรอกแผนงาน");
               if (!f.periods.length) return notify("กรุณาเลือกช่วงเวลา");
+              const autoApprove = isSelfApprover;
               setPlans([
                 ...plans,
                 {
                   id: Date.now(),
                   empId: user.id,
                   ...f,
-                  status: "Approved",
-                  approvedBy: user.name,
+                  status: autoApprove ? "Approved" : "Pending",
+                  approvedBy: autoApprove ? user.name : undefined,
                 },
               ]);
               setF({ ...f, task: "", periods: [] });
-              notify("บันทึกแผนงานเรียบร้อย");
+              notify(
+                autoApprove
+                  ? "บันทึกแผนงานเรียบร้อย (อนุมัติอัตโนมัติ)"
+                  : user.role === "PM"
+                    ? "ส่งแผนแล้ว — รอ OM อนุมัติ"
+                    : "ส่งแผนแล้ว — รอ PM อนุมัติ",
+              );
             }}
           >
-            บันทึกแผนงาน
+            {isSelfApprover ? "บันทึกแผนงาน" : "ส่งแผนเพื่ออนุมัติ"}
           </button>
         </Card>
       )}
@@ -2082,6 +2115,8 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
     if (notify) notify("ทำเสร็จแล้ว");
   };
   const handleSaveEditedPlan = (updatedPlan) => {
+    const isSelfApprover = ["OM", "GM", "MD"].includes(user.role);
+    const autoApprove = isSelfApprover;
     setPlans(
       plans.map((item) =>
         item.id === updatedPlan.id
@@ -2091,8 +2126,8 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
             periods: updatedPlan.periods,
             priority: updatedPlan.priority,
             task: updatedPlan.task,
-            status: "Approved",
-            approvedBy: item.approvedBy || user.name,
+            status: autoApprove ? "Approved" : "Pending",
+            approvedBy: autoApprove ? user.name : undefined,
             lastEditedAt: new Date().toISOString(),
           }
           : item,
@@ -2108,14 +2143,41 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
           action: "Resubmitted",
           by: user.name,
           time: new Date().toLocaleString("th-TH"),
-          comment: `แก้ไขแผนงาน: ${updatedPlan.task}`,
+          comment: `แก้ไขแผนงานและส่งใหม่: ${updatedPlan.task}`,
+        },
+        ...(prev ?? []),
+      ]);
+    }
+
+    const supervisor =
+      emps.find((e) => e.id === user.managerId) ||
+      (user.role === "PM" ? emps.find((e) => e.role === "OM") : null);
+
+    if (supervisor && setNotifications) {
+      setNotifications((prev) => [
+        {
+          id: Date.now() + Math.random(),
+          targetEmpId: supervisor.id,
+          planId: updatedPlan.id,
+          taskName: updatedPlan.task,
+          action: "Resubmitted",
+          actionBy: user.name,
+          comment: "แก้ไขแผนงานและส่งขออนุมัติใหม่",
+          time: new Date().toLocaleString("th-TH"),
+          read: false,
         },
         ...(prev ?? []),
       ]);
     }
 
     if (notify) {
-      notify("บันทึกการแก้ไขเรียบร้อย");
+      notify(
+        autoApprove
+          ? "บันทึกการแก้ไขเรียบร้อย (อนุมัติอัตโนมัติ)"
+          : user.role === "PM"
+            ? "บันทึกการแก้ไขแล้ว — รอ OM อนุมัติ"
+            : "บันทึกการแก้ไขแล้ว — รอ PM อนุมัติ",
+      );
     }
     setEditingPlan(null);
   };
