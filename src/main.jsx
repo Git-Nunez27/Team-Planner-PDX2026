@@ -1692,7 +1692,61 @@ function EditPlanModal({ plan, onClose, onSave }) {
   );
 }
 
+function CompletePlanModal({ plan, onClose, onSave }) {
+  const [note, setNote] = useState(plan.completionNote || "");
+
+  const handleSubmit = (e) => {
+    e?.preventDefault();
+    if (!note.trim()) {
+      alert("กรุณากรอกรายละเอียดผลการทำงาน");
+      return;
+    }
+    onSave(note.trim());
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>
+            ✅ บันทึกผลการทำงาน (เสร็จสิ้นงาน)
+          </h3>
+          <button className="modal-close" onClick={onClose} title="ปิด">✕</button>
+        </div> 
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <div style={{ marginBottom: "12px", background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: "4px" }}>📌 งาน: {plan.task}</div>
+              <div style={{ fontSize: "12px", color: "#64748b" }}>วันที่: {plan.date} · ช่วงเวลา: {plan.periods?.join(", ") || "-"}</div>
+            </div>
+            <label>
+              รายละเอียดผลการทำงาน <small style={{ color: "#64748b", fontWeight: "normal" }}>(สามารถกด Enter เพื่อขึ้นบรรทัดใหม่ได้)</small>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="กรอกรายละเอียดผลการทำงาน สามารถกด Enter เพื่อขึ้นบรรทัดใหม่..."
+                rows={5}
+                autoFocus
+                style={{ width: "100%", marginTop: "6px", resize: "vertical", fontFamily: "inherit", fontSize: "14px" }}
+              />
+            </label>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn small" onClick={onClose}>
+              ยกเลิก
+            </button>
+            <button type="submit" className="btn primary success">
+              ✓ ยืนยันทำเสร็จแล้ว
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNotifications }) {
+  const [completingPlan, setCompletingPlan] = useState(null);
   const [editingPlan, setEditingPlan] = useState(null);
   const todayStr = (() => {
     const d = new Date();
@@ -1727,27 +1781,24 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
       notify("ยกเลิกการทำเสร็จ");
       return;
     }
-    const completionNote = window.prompt(
-      "กรอกรายละเอียดผลการทำงานก่อนยืนยัน",
-    );
-    if (completionNote === null) return;
-    if (!completionNote.trim()) {
-      window.alert("กรุณากรอกรายละเอียดผลการทำงาน");
-      return;
-    }
+    setCompletingPlan(plan);
+  };
+  const handleSaveCompletion = (completionNote) => {
+    if (!completingPlan) return;
     setPlans(
       plans.map((item) =>
-        item.id === plan.id
+        item.id === completingPlan.id
           ? {
             ...item,
             done: true,
-            completionNote: completionNote.trim(),
+            completionNote,
             completedAt: new Date().toISOString(),
           }
           : item,
       ),
     );
     notify("ทำเสร็จแล้ว");
+    setCompletingPlan(null);
   };
   const exportPlans = () => {
     const sortedPlans = rows
@@ -2001,8 +2052,9 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
                   <td>
                     <div>{p.task}</div>
                     {p.completionNote && (
-                      <small style={{ display: "block", color: "#0891b2", marginTop: "4px" }}>
-                        📝 รายละเอียดผลงาน: {p.completionNote}
+                      <small style={{ display: "block", color: "#0891b2", marginTop: "4px", whiteSpace: "pre-wrap" }}>
+                        📝 รายละเอียดผลงาน:
+                        <div style={{ marginTop: "2px" }}>{p.completionNote}</div>
                       </small>
                     )}
                   </td>
@@ -2070,6 +2122,13 @@ function Plan({ plans, setPlans, emps, user, notify, history, setHistory, setNot
           onSave={handleSaveEditedPlan}
         />
       )}
+      {completingPlan && (
+        <CompletePlanModal
+          plan={completingPlan}
+          onClose={() => setCompletingPlan(null)}
+          onSave={handleSaveCompletion}
+        />
+      )}
     </>
   );
 }
@@ -2081,6 +2140,7 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
         plan.id === planId ? { ...plan, done: !plan.done } : plan,
       ),
     );
+  const [completingPlan, setCompletingPlan] = useState(null);
   const completePlan = (plan) => {
     if (plan.done) {
       if (!window.confirm("ยืนยันยกเลิกสถานะทำเสร็จงานนี้หรือไม่?")) return;
@@ -2092,27 +2152,24 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
       if (notify) notify("ยกเลิกการทำเสร็จ");
       return;
     }
-    const completionNote = window.prompt(
-      "กรอกรายละเอียดผลการทำงานก่อนยืนยัน",
-    );
-    if (completionNote === null) return;
-    if (!completionNote.trim()) {
-      window.alert("กรุณากรอกรายละเอียดผลการทำงาน");
-      return;
-    }
+    setCompletingPlan(plan);
+  };
+  const handleSaveCompletion = (completionNote) => {
+    if (!completingPlan) return;
     setPlans(
       plans.map((item) =>
-        item.id === plan.id
+        item.id === completingPlan.id
           ? {
             ...item,
             done: true,
-            completionNote: completionNote.trim(),
+            completionNote,
             completedAt: new Date().toISOString(),
           }
           : item,
       ),
     );
     if (notify) notify("ทำเสร็จแล้ว");
+    setCompletingPlan(null);
   };
   const handleSaveEditedPlan = (updatedPlan) => {
     const isSelfApprover = ["OM", "GM", "MD"].includes(user.role);
@@ -2540,7 +2597,7 @@ function Calendar({ plans, setPlans, emps, user, notify, history, setHistory, se
                                 ? "ทำเสร็จแล้ว"
                                 : plan.status === "Replied"
                                   ? "↩ แก้ไขแผน"
-                                  : "ทำเสร็จแล้ว"}
+                                  : "กดสำเร็จงาน"}
                             </button>
                           )}
                           <button
